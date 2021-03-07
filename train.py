@@ -1,54 +1,66 @@
 import torch
-from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from torch_geometric.datasets import Planetoid
+from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
+import pytorch_lightning as pl
+
+
+# Could rather make an inductiveGAT and transductiveGAT?
+# TODO add logging, e.g. tensorboard
+class GATCora(pl.LightningModule):
+    def __init__(self, heads=8, gat1_features=8):  # Useful so that we can play around with number of heads and features.
+        super(GATCora, self).__init__()
+        # From GAT paper, Section 3.3
+        self.gat1_features = gat1_features
+        self.heads = heads
+
+        self.num_node_features = 1433
+        self.num_classes = 7
+
+        self.gat1 = GATConv(in_channels=self.num_node_features, out_channels=self.gat1_features, heads=self.heads)
+        self.gat2 = GATConv(in_channels=gat1_features * self.heads, out_channels=self.num_classes, concat=False)
+
+    def forward(self, data):
+        x, edge_index = data.x, data.edge_index
+
+        x = self.gat1(x, edge_index)
+        x = self.gat2(x, edge_index)
+        x = F.log_softmax(x, dim=1)  # TODO ELU activation in gat2 already
+
+        return x
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters())
+        return optimizer
+
+    def training_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
+        out = self(batch)
+        loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
+
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        # Copied from https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html#learning-methods-on-graphs
+        out = self(batch)
+        pred = out.argmax(dim=1)  # Use the class with highest probability.
+
+        # TODO change to torch accuracy metric
+        test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
+        test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
+
+        return test_acc
+
+    def train_dataloader(self):
+        dataset = Planetoid(root='/tmp/Cora', name='Cora')
+        return DataLoader(dataset)
 
 
 def train_cora():
-    dataset = Planetoid(root='/tmp/Cora', name='Cora')
-    loader = DataLoader(dataset, batch_size=32, shuffle=True)
+    gat_cora = GATCora()
 
-    class GATCora(torch.nn.Module):
-        def __init__(self):
-            # From GAT paper, Section 3.3
-            super(GATCora, self).__init__()
-            self.gat1 = GATConv(in_channels=dataset.num_node_features, out_channels=8, heads=8)
-            self.gat2 = GATConv(in_channels=8*8, out_channels=dataset.num_classes, concat=False)
-
-        def forward(self, data):
-            x, edge_index = data.x, data.edge_index
-
-            x = self.gat1(x, edge_index)
-            x = self.gat2(x, edge_index)
-            x = F.log_softmax(x)  # TODO ELU activation in gat2 already
-
-            return x
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = GATCora()
-    data = dataset[0].to(device)
-    print("tmp: data", data)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
-
-    print("test")
-    model.train()
-    for epoch in range(1):
-        optimizer.zero_grad()
-        out = model(data)
-        loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask])
-        loss.backward()
-        optimizer.step()
-
-    print("eval")
-    model.eval()
-    for epoch in range(1):
-        out = model(data)
-        pred = out.argmax(dim=1)  # Use the class with highest probability.
-        test_correct = pred[data.test_mask] == data.y[data.test_mask]  # Check against ground-truth labels.
-        test_acc = int(test_correct.sum()) / int(data.test_mask.sum())  # Derive ratio of correct predictions.
-
-    print(f"test acc: {test_acc}")
+    trainer = pl.Trainer(max_epochs=4)
+    trainer.fit(gat_cora)
 
 
 if __name__ == "__main__":
