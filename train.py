@@ -62,7 +62,6 @@ def train_cora():
     trainer = pl.Trainer(max_epochs=4)
     trainer.fit(gat_cora)
 
-
 if __name__ == "__main__":
     # TOOD argparsing, could do one for each dataset?
 
