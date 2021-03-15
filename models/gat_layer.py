@@ -47,14 +47,12 @@ class GATLayer(nn.Module):
         n = h.size()[0] # extracting the size of h (F in the paper)
 
         # attention
-        input_attention = torch.cat([h.repeat(1, n).view(n*n, -1), h.repeat(n, 1)], dim=1).view(n, -1,
-                                                                                                2*self.out_channels)
-        attention_coefficients = self.leakyReLu(torch.matmul(input_attention, self.attention).squeeze(right_dimension))
-
-                                                        # squeeze output in the right_dimension - not sure if it should
-                                                        # be dimension 1 or 2, need to look at some data
+        input_attention = torch.cat([h.repeat(1, n).view(n*n, -1), h.repeat(n, 1)], dim=1).view(n, -1, 2*self.out_channels)
+        
+        attention_coefficients = self.leakyReLu(torch.matmul(input_attention, self.attention))
+        attention_coefficients = attention_coefficients.squeeze(2)
+        
         # masked attention
-
         #negative_vector = -10e20*torch.ones_like(attention_coefficients)
         masked_attention = torch.where(immediate_neighbor > 0, attention_coefficients, 0.)
 
