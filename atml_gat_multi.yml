@@ -1,0 +1,15 @@
+name: torch
+channels:
+  - defaults
+dependencies:
+  - python=3.8.3
+  - networkx
+  - cpuonly
+  - pytorch
+  - torchaudio
+  - torchvision
+  - scipy
+  - jupyterlab
+  - scikit-learn
+  - pytorch-lightning
+prefix: C:\Users\pavlo\anaconda3\envs\torch
