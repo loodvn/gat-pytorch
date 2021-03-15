@@ -1,4 +1,4 @@
-name: torch
+name: atml_gat
 channels:
   - anaconda
   - pytorch
