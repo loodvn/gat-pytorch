@@ -1,10 +1,12 @@
 import torch
 import sys
 import torch.nn.functional as F
+import argparse
 from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
 import pytorch_lightning as pl
+from models.gat_layer import GATLayer
 
 # class induGAT(pl.LightningModule)
 #     def __init__(self, dataset, node_features, num_classes, in_heads=4, out_heads=6, head_features=8, l2_reg=0.0005, dropout=0.6):
@@ -43,7 +45,7 @@ import pytorch_lightning as pl
 # inductive and transductive in one?
 # TODO add logging, e.g. tensorboard
 class transGAT(pl.LightningModule):
-    def __init__(self, dataset, node_features, num_classes, in_heads=8, out_heads=1, head_features=8, l2_reg=0.0005, dropout=0.6):
+    def __init__(self, dataset, node_features, num_classes, in_heads=8, out_heads=1, head_features=8, l2_reg=0.0005, lr = 0.005, dropout=0.6):
         super(transGAT, self).__init__()
         self.dataset = dataset
 
@@ -52,6 +54,7 @@ class transGAT(pl.LightningModule):
         self.in_heads = in_heads
         self.out_heads = out_heads
 
+        self.lr = lr
         self.l2_reg = l2_reg
         self.dropout = dropout
 
@@ -60,8 +63,8 @@ class transGAT(pl.LightningModule):
         self.num_classes = num_classes
 
         # Is out for layer 1 correct?
-        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, add_self_loops=True, dropout=self.dropout) # add self loops?
-        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, concat=False, dropout=self.dropout)
+        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, add_self_loops=True, dropout=self.dropout) # add self loops? GATLayer(in_channels=self.node_features, out_channels=self.head_features, number_of_heads=self.in_heads, dropout=self.dropout, alpha = 0.2)#
+        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, concat=False, dropout=self.dropout) # GATLayer(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, number_of_heads=self.out_heads, concat=False, dropout=self.dropout, alpha = 0.2)#
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
@@ -78,8 +81,7 @@ class transGAT(pl.LightningModule):
 
     def configure_optimizers(self):
         # Need to use AdamW instead? - see paper: https://arxiv.org/abs/1711.05101
-        # swap in with self.lr....
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.005, weight_decay=0.0005)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
         # optimizer = torch.optim.AdamW(self.parameters(), lr=0.005, weight_decay=0.0005)
         return optimizer
 
@@ -93,16 +95,16 @@ class transGAT(pl.LightningModule):
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        out = self(batch)
-        pred = out.argmax(dim=1)
-        correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
-        val_acc = (correct / batch.test_mask.sum().item())
-        # This is minimising cross entropy right?
-        val_loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
-        # loss = torch.nn.CrossEntropyLoss(out[batch.train_mask], batch.y[batch.train_mask])
-        print(val_loss)
-        return loss
+    # def validation_step(self, batch, batch_idx):
+    #     out = self(batch)
+    #     pred = out.argmax(dim=1)
+    #     correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
+    #     val_acc = (correct / batch.test_mask.sum().item())
+    #     # This is minimising cross entropy right?
+    #     val_loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
+    #     # loss = torch.nn.CrossEntropyLoss(out[batch.train_mask], batch.y[batch.train_mask])
+    #     print(val_loss)
+    #     return loss
 
     def test_step(self, batch, batch_idx):
         # Copied from https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html#learning-methods-on-graphs
@@ -136,11 +138,11 @@ class transGAT(pl.LightningModule):
         return DataLoader(dataset)        
 
 
-def train(dataset, node_features, num_classes, max_epochs):
+def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg):
     if dataset == 'PPI':
-        gat = induGAT(dataset, node_features, num_classes)
+        gat = induGAT()
     else:
-        gat = transGAT(dataset, node_features, num_classes)
+        gat = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, lr=learning_rate, l2_reg=l2_reg)
 
     trainer = pl.Trainer(max_epochs=max_epochs)
     
@@ -150,11 +152,24 @@ def train(dataset, node_features, num_classes, max_epochs):
     
 
 if __name__ == "__main__":
-    # TOOD argparsing, could do one for each dataset?
-    dataset = 'Cor'
-    max_epochs = 100
-    task_type = 'transductive'
-    learning_rate = 0.005
+    parser = argparse.ArgumentParser(description='Read in dataset and any other flags from command line')
+    parser.add_argument('--dataset', default='Cora')
+    parser.add_argument('--max_epochs', default=100)
+    parser.add_argument('--l2', default=0.0005)
+    parser.add_argument('--lr', default=0.005)
+
+    parser.add_argument('--histograms', default=False)
+    parser.add_argument('--save', default=True)
+
+    args = parser.parse_args()
+    
+    dataset = args.dataset
+    max_epochs = args.max_epochs
+    # task_type = 'transductive'
+    learning_rate = args.lr
+    l2_reg = args.l2
+
+    print(dataset)
 
     if dataset == 'Cora':
         node_features = 1433
@@ -166,12 +181,13 @@ if __name__ == "__main__":
         node_features = 500
         num_classes = 3
         learning_rate = 0.01
+        l2_reg = 0.001
     elif dataset == 'PPI':
         node_features = 50
         num_classes = 121
-        task_type = 'inductive'
+        # task_type = 'inductive'
     else:
         sys.exit('Dataset is invalid')
     
-    train(dataset, node_features, num_classes, max_epochs)
+    train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg)
     
