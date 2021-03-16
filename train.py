@@ -1,4 +1,5 @@
 import torch
+import sys
 import torch.nn.functional as F
 from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
@@ -89,10 +90,19 @@ class transGAT(pl.LightningModule):
         loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
         # loss = torch.nn.CrossEntropyLoss(out[batch.train_mask], batch.y[batch.train_mask])
         print(loss)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        pass
+        out = self(batch)
+        pred = out.argmax(dim=1)
+        correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
+        val_acc = (correct / batch.test_mask.sum().item())
+        # This is minimising cross entropy right?
+        val_loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
+        # loss = torch.nn.CrossEntropyLoss(out[batch.train_mask], batch.y[batch.train_mask])
+        print(val_loss)
+        return loss
 
     def test_step(self, batch, batch_idx):
         # Copied from https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html#learning-methods-on-graphs
@@ -141,23 +151,27 @@ def train(dataset, node_features, num_classes, max_epochs):
 
 if __name__ == "__main__":
     # TOOD argparsing, could do one for each dataset?
-    dataset = 'Cora'
+    dataset = 'Cor'
     max_epochs = 100
     task_type = 'transductive'
+    learning_rate = 0.005
 
     if dataset == 'Cora':
         node_features = 1433
         num_classes = 7
-    elif dataset == 'Pubmed':
-        node_features = 500
-        num_classes = 3
     elif dataset == 'Citeseer':
         node_features = 3703
         num_classes = 6  
+    elif dataset == 'Pubmed':
+        node_features = 500
+        num_classes = 3
+        learning_rate = 0.01
     elif dataset == 'PPI':
         node_features = 50
         num_classes = 121
         task_type = 'inductive'
+    else:
+        sys.exit('Dataset is invalid')
     
     train(dataset, node_features, num_classes, max_epochs)
     
