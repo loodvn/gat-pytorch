@@ -3,45 +3,38 @@ import torch.nn as nn
 
 class GATLayer_2(nn.Module):
 
-    def __init__(self, input_features, output_features, no_heads, dropout=0.6, include_skip_connections=True,
-                  concat = True, activation=nn.ELU()):
+    def __init__(self, input_features, output_features, no_heads, dropout=0.6, concat=True, activation=nn.ELU()):
 
         super(GATLayer_2, self).__init__()
 
         self.no_heads = no_heads
         self.input_features = input_features
         self.output_features = output_features
-        self.ls = nn.Linear(input_features, no_heads * output_features, bias=False)  # ls stands for linear sum which is
-                                                                                  # the first linear projection defined
-                                                                                  # in the paper
-        # dimension here is 1 to denote that we are calculating the attention of 1 node
-        # second dimension denotes the number of heads, which have independent feature representation
-        # third dimension is just the number of output features from previous layers/representations
+        self.ls = nn.Linear(input_features, no_heads * output_features, bias=False) # ls stands for linear sum which is
+                                                                                    # the first linear projection defined
+                                                                                    # in the paper
+
+        # Dimension below is 1 to denote that we are calculating the attention of 1 node.
+        # Second dimension denotes the number of heads, which have independent feature representation for each node.
+        # Third dimension is just the number of output features from previous layers/representations
 
         self.self_attention_coefficient = nn.Parameter(torch.Tensor(1, no_heads, output_features))# self-attention needs
                                                                                     # to be defined even if there is no
-                                                                                   # self-loop
+                                                                                   # self-loop since we want to calculate
+                                                                                   # self attention as well
+
         self.neighbor_attention_coefficient = nn.Parameter(torch.Tensor(1, no_heads, output_features))
-
-        if include_skip_connections:
-             self.skip_projection = nn.Linear(input_features, no_heads * output_features, bias=False)
-        else:
-            self.register_parameter('skip_projection', None)  # if we don't want skip connections, this is simply
-                                                       # initialised as a new parameter using pytorch documentation
-
-        # could have activation as an input to the class but I think this will work as well
-        self.activation = activation
-        self.leakyReLu = nn.LeakyRelu(0.2)  # negative slope is 0.2 from the paper
-        self.dropout = nn.Dropout(dropout)
-        self.attention_weights = None
-        self.concat = concat
-        self.include_skip_connections = include_skip_connections
+        self.activation = activation        # ELU
+        self.leakyReLu = nn.LeakyRelu(0.2)  # what they use for the paper
+        self.dropout = nn.Dropout(dropout)  # dropout layer
+        self.concat = concat                # denotes whether we are concatenating feature representations from heads or
+                                            # not. If at the last layer, we shouldn't concatenate but we should use the
+                                            # mean
         self.reset_parameters()
 
-    def forward(self, input_data):
+    def forward(self, input_data, return_attention=False):
         node_features, edge_index = input_data
-        total_nodes = node_features.shape[0]  # first dimension gives the total number of nodes from the input features
-        node_features = self.dropout(node_features)  # we apply a dropout on all input features as described in the paper
+        node_features = self.dropout(node_features) # we apply a dropout on all input features as described in the paper
 
         # we projecting the feature representations of the nodes
         projection_node_features = self.ls(node_features)
@@ -59,6 +52,7 @@ class GATLayer_2(nn.Module):
         edge_scores = self.leakyReLu(source_scores + target_scores)  # here we normalise the scores for edges by summing
                                                                          # over the scores calculated for the source index
                                                                          # and the target index
+        total_nodes = node_features.shape[0]  # first dimension gives the total number of nodes from the input features
         edge_attention = self.normalise_neighborhood(edge_scores, edge_index[1], total_nodes)
         edge_attention = self.dropout(edge_attention)
 
@@ -73,7 +67,7 @@ class GATLayer_2(nn.Module):
         # We return the node features and the edge_index, will probably be helpful
         # could also return something else if needed, need to see with the visualisation requirements
 
-        return edge_attention, output_node_features
+        return (output_node_features, edge_attention) if return_attention else output_node_features
 
     def score_calculation(self, source_node_score, target_node_score, projection_matrix, edge_index):
 
@@ -116,10 +110,10 @@ class GATLayer_2(nn.Module):
             until the inserted dimensions match. This will help when calculating neighborhood attention scores
             in cases where the neighbors aren't the same"""
 
-        for _ in range(first.dim(), second.dim()):
-            first = first.unsqueeze(-1)
+        for _ in range(input.dim(), output.dim()):
+            input = input.unsqueeze(-1)
             # return first.expand_as(second)
-        return first.expand(second.size())
+        return input.expand(second.size())
 
     def node_feature_normalised(self, projection_normalised_neighborhood, edge_index, node_features_output, nodes):
 
@@ -130,14 +124,8 @@ class GATLayer_2(nn.Module):
 
         return node_features_output
 
-    def node_features(self, attention_coefficients, input_node_features, output_node_features):
+    def node_features(self, output_node_features):
 
-        if self.include_skip_connection:
-            if output_node_features.shape[-1] == input_node_features.shape[-1]:
-                output_node_features += input_node_features.unsqueeze(1)
-            else:
-                output_node_features += self.skip_projection(input_nodes_features).view(-1, self.number_of_heads,
-                                                                                        self.output_features)
         if self.concat:
             output_node_features = output_node_features.view(-1, self.no_heads * self.output_features)
 
