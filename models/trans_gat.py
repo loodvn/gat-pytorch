@@ -8,14 +8,13 @@ from torch_geometric.nn import GATConv
 import pytorch_lightning as pl
 from models.gat_layer import GATLayer
 
-
+# It is possible to join trans and indu but not really beneficial
 # TODO add logging, e.g. tensorboard
 class transGAT(pl.LightningModule):
     def __init__(self, dataset, node_features, num_classes, in_heads=8, out_heads=1, head_features=8, l2_reg=0.0005, lr = 0.005, dropout=0.6):
         super(transGAT, self).__init__()
         self.dataset = dataset
 
-        # From GAT paper, Section 3.3
         self.head_features = head_features
         self.in_heads = in_heads
         self.out_heads = out_heads
@@ -24,11 +23,9 @@ class transGAT(pl.LightningModule):
         self.l2_reg = l2_reg
         self.dropout = dropout
 
-        # These are cora specific and shouldnt be explicitly declared
         self.node_features = node_features
         self.num_classes = num_classes
 
-        # Is out for layer 1 correct?
         self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, add_self_loops=True, dropout=self.dropout) # add self loops? GATLayer(in_channels=self.node_features, out_channels=self.head_features, number_of_heads=self.in_heads, dropout=self.dropout, alpha = 0.2)#
         self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, concat=False, dropout=self.dropout) # GATLayer(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, number_of_heads=self.out_heads, concat=False, dropout=self.dropout, alpha = 0.2)#
 
@@ -46,13 +43,10 @@ class transGAT(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        # Need to use AdamW instead? - see paper: https://arxiv.org/abs/1711.05101
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
-        # optimizer = torch.optim.AdamW(self.parameters(), lr=0.005, weight_decay=0.0005)
         return optimizer
 
     def training_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
-        # # l2 regularisation
         out = self(batch)
         # This is minimising cross entropy right?
         loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
@@ -78,12 +72,12 @@ class transGAT(pl.LightningModule):
         pred = out.argmax(dim=1)  # Use the class with highest probability.
 
         # TODO change to torch accuracy metric
-        # test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
-        # test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
+        test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
+        test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
 
-        correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
-        test_acc = (correct / batch.test_mask.sum().item())
-        print("correct ", correct)
+        # correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
+        # test_acc = (correct / batch.test_mask.sum().item())
+        # print("correct ", correct)
         print("This is the test accuracy")
         print(test_acc)
         return test_acc

@@ -11,7 +11,7 @@ from models.trans_gat import transGAT
 from models.indu_gat import induGAT
 
 
-def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads):
+def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads, save):
     if dataset == 'PPI':
         gat = induGAT()
     else:
@@ -22,7 +22,21 @@ def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg
     trainer.fit(gat)
 
     trainer.test()
+
+    if save:
+        trainer.save_checkpoint(dataset + ".ckpt")
     
+def load(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads):
+    print('I am loading :)')
+    # Will need to change this as loaded dataset could be an induGAT
+    # loaded_model = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, lr=learning_rate, l2_reg=l2_reg, out_heads=out_heads).load_from_checkpoint(checkpoint_path=dataset+".ckpt")
+    # loaded_model = transGAT.load_from_checkpoint(checkpoint_path=dataset+".ckpt", dataset=dataset, node_features=node_features, num_classes=num_classes)
+    loaded_model = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes)
+    trainer = pl.Trainer(resume_from_checkpoint=dataset+".ckpt")
+    # trainer = pl.Trainer()
+    # trainer.fit(loaded_model)
+    trainer.test(loaded_model)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Read in dataset and any other flags from command line')
@@ -30,20 +44,23 @@ if __name__ == "__main__":
     parser.add_argument('--max_epochs', default=100)
     parser.add_argument('--l2', default=0.0005)
     parser.add_argument('--lr', default=0.005)
+    parser.add_argument('--exec_type', default='train') # could also be load
 
     parser.add_argument('--histograms', default=False)
-    parser.add_argument('--save', default=True)
+    parser.add_argument('--save', default=False)
 
     args = parser.parse_args()
     
     dataset = args.dataset
     max_epochs = args.max_epochs
-    # task_type = 'transductive'
     learning_rate = args.lr
     l2_reg = args.l2
 
     out_heads = 1
 
+    print(args.save)
+
+    
     if dataset == 'Cora':
         node_features = 1433
         num_classes = 7
@@ -59,9 +76,12 @@ if __name__ == "__main__":
     elif dataset == 'PPI':
         node_features = 50
         num_classes = 121
-        # task_type = 'inductive'
     else:
         sys.exit('Dataset is invalid')
-    
-    train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads)
+
+    if args.exec_type == 'train':
+        train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads, args.save)
+
+    elif args.exec_type == 'load':
+        load(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads)
     
