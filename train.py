@@ -13,7 +13,8 @@ from models.indu_gat import induGAT
 
 def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads, save):
     if dataset == 'PPI':
-        gat = induGAT()
+        gat = induGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, lr=learning_rate, l2_reg=l2_reg)
+        print(gat)
     else:
         gat = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, out_heads=out_heads, lr=learning_rate, l2_reg=l2_reg)
 

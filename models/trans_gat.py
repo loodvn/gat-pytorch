@@ -8,7 +8,6 @@ from torch_geometric.nn import GATConv
 import pytorch_lightning as pl
 from models.gat_layer import GATLayer
 
-# It is possible to join trans and indu but not really beneficial
 # TODO add logging, e.g. tensorboard
 class transGAT(pl.LightningModule):
     def __init__(self, dataset, node_features, num_classes, in_heads=8, out_heads=1, head_features=8, l2_reg=0.0005, lr = 0.005, dropout=0.6):
@@ -52,7 +51,7 @@ class transGAT(pl.LightningModule):
         loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
         # loss = torch.nn.CrossEntropyLoss(out[batch.train_mask], batch.y[batch.train_mask])
         print(loss)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     # def validation_step(self, batch, batch_idx):
@@ -78,6 +77,7 @@ class transGAT(pl.LightningModule):
         # correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
         # test_acc = (correct / batch.test_mask.sum().item())
         # print("correct ", correct)
+        self.log('test_acc', test_acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         print("This is the test accuracy")
         print(test_acc)
         return test_acc
