@@ -21,7 +21,7 @@ class GATLayer(nn.Module):
         self.alpha = alpha  # should be 0.2
         self.number_of_heads = number_of_heads
         self.concat = concat
-        self.include_skip_connection = include_skip_connection # useful for the transductive implementation
+        self.include_skip_connection = include_skip_connection # useful for the inductive implementation
 
         # model should be initialised using Glorot(Xavier initialisation) which means:
         # leakyReLu with negative slope = 0.2
