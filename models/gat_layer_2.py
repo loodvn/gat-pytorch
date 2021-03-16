@@ -73,7 +73,7 @@ class GATLayer_2(nn.Module):
         # We return the node features and the edge_index, will probably be helpful
         # could also return something else if needed, need to see with the visualisation requirements
 
-        return output_node_features, edge_index
+        return edge_attention, output_node_features, edge_index
 
     def score_calculation(self, source_node_score, target_node_score, projection_matrix, edge_index):
 
