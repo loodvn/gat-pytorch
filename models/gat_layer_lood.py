@@ -70,12 +70,12 @@ class GATLayerLood(nn.Module):
         print("softmax shape: ", softmax.size())
 
         # Multiply representations by attention coefficients
-        weighted_target_representations = target_representations * softmax.view(E, self.num_heads, 1)  # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
+        weighted_target_representations = softmax.view(E, self.num_heads, 1) * target_representations   # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
         print(weighted_target_representations.size())
 
         output_features = node_features.new_zeros((N, self.num_heads, self.out_features))
         target_idx = target_edges.unsqueeze(-1).unsqueeze(-1).expand_as(weighted_target_representations)  # TODO this is ugly
-        # Aggregate again according to target edge.
+        # Get the attention-weighted sum of neighbours. Aggregate again according to target edge.
         output_features.scatter_add_(dim=0, index=target_idx, src=weighted_target_representations)
         assert output_features.size() == (N, self.num_heads, self.out_features)
 
