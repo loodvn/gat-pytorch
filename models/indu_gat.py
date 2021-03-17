@@ -6,6 +6,7 @@ from torch_geometric.datasets import PPI
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
 from torch.nn import Sigmoid
+from torch.nn import BCEWithLogitsLoss
 import pytorch_lightning as pl
 from gat_layer import GATLayer
 from sklearn.metrics import f1_score
@@ -15,7 +16,7 @@ from sklearn.metrics import f1_score
 # TODO loading correctly
 # TODO skip connections in middle GATConv layer
 
-pl.seed_everything(42)
+# pl.seed_everything(42)
 
 class induGAT(pl.LightningModule):
     def __init__(self, dataset, node_features, num_classes, in_heads=4, mid_heads=4, out_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
@@ -47,40 +48,47 @@ class induGAT(pl.LightningModule):
 
         x = self.gat1(x, edge_index)
         x = F.elu(x)
-        layer1_skip = x  # add skip connection between layer 1 output and layer 3 input
+        # layer1_skip = x  # add skip connection between layer 1 output and layer 3 input
+        # print(layer1_skip)
         x = self.gat2(x, edge_index)
         x = F.elu(x)
-        x = self.gat3(x + layer1_skip, edge_index) #+layer1_skip
-        s = Sigmoid()
-        x = s(x)
+        # print(layer1_skip)
+        x = self.gat3(x , edge_index) #+ layer1_skip
+        # print(x)
+        # s = Sigmoid()
+        # x = s(x)
+        # print(x)
 
         return x
 
-
+    
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)#, weight_decay=self.l2_reg)
         return optimizer
 
     def training_step(self, batch, batch_idx):
         out = self(batch)
-        print("sigmoid error: ", (out[0]-batch.y[0]))
-        loss = F.binary_cross_entropy(out, batch.y)
+        # print("sigmoid error: ", (out[0]-batch.y[0]))
+        loss_fn = BCEWithLogitsLoss(reduction='mean') #F.binary_cross_entropy(out, batch.y)
+        loss = loss_fn(out, batch.y)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
-        f1 = f1_score(out > 0.5, batch.y, average="samples")
+        f1 = f1_score(out > 0.5, batch.y, average='micro')
         self.log('train_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        out = self(batch)
-        loss = F.binary_cross_entropy(out, batch.y)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+    # def validation_step(self, batch, batch_idx):
+    #     out = self(batch)
+    #     # loss = F.binary_cross_entropy(out, batch.y)
+    #     loss_fn = BCEWithLogitsLoss(reduction='mean') #F.binary_cross_entropy(out, batch.y)
+    #     loss = loss_fn(out, batch.y)
+    #     self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
-        f1 = f1_score(out > 0.5, batch.y, average="samples")
-        self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+    #     f1 = f1_score(out > 0.5, batch.y, average="samples")
+    #     self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
-        return loss
+    #     return loss
 
 
     def test_step(self, batch, batch_idx):
@@ -106,7 +114,7 @@ class induGAT(pl.LightningModule):
 
     # Only for PPI dataset at this stage - move into train.py
     def train_dataloader(self):
-        return DataLoader(self.train_ds, shuffle=True)        
+        return DataLoader(self.train_ds, batch_size=2, shuffle=True)        
     
     def val_dataloader(self):
         return DataLoader(self.val_ds) 
@@ -116,6 +124,6 @@ class induGAT(pl.LightningModule):
 
 if __name__ == "__main__":
     gat = induGAT(dataset='PPI', node_features=50, num_classes=121, lr=0.005, l2_reg=0)
-    trainer = pl.Trainer(max_epochs=100)#, limit_train_batches=0.1)
+    trainer = pl.Trainer(max_epochs=20, limit_train_batches=0.1)
     trainer.fit(gat)
     trainer.test()
