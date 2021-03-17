@@ -133,3 +133,6 @@ lightning_logs/
 
 # vs Code
 .vscode/
+
+# PyCharm
+.idea/
