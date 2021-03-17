@@ -33,6 +33,7 @@ class GATLayer_2(nn.Module):
         self.reset_parameters()
 
     def forward(self, input_data, return_attention=False):
+
         node_features, edge_index = input_data
         node_features = self.dropout(node_features) # we apply a dropout on all input features as described in the paper
 
@@ -135,7 +136,7 @@ class GATLayer_2(nn.Module):
         return self.activation(output_node_features) if self.activation is not None else output_node_features
 
     def reset_parameters(self):
-        nn.init.xavier_uniform(self.ls.weight)
 
+        nn.init.xavier_uniform(self.ls.weight)
         nn.init.xavier_uniform(self.self_attention_coefficient)
         nn.init.xavier_uniform(self.neighbor_attention_coefficient)
