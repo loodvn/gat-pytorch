@@ -73,6 +73,11 @@ def load_cora_data():
     cora_graph.edge_index, _ = add_self_loops(cora_graph.edge_index, num_nodes=cora_graph.x.shape[0])
     return cora_graph
 
+def load_ppi_data():
+    pass
+
+def load_pubmed_data():
+    pass
 
 def train_cora_ow():
     trainer = pl.Trainer(max_epochs=10)
