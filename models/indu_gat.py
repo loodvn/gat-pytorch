@@ -73,29 +73,29 @@ class induGAT(pl.LightningModule):
         loss = loss_fn(out, batch.y)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
-        f1 = f1_score(out > 0.5, batch.y, average='micro')
+        f1 = f1_score(y_pred=out > 0, y_true=batch.y, average='micro')
         self.log('train_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
-    # def validation_step(self, batch, batch_idx):
-    #     out = self(batch)
-    #     # loss = F.binary_cross_entropy(out, batch.y)
-    #     loss_fn = BCEWithLogitsLoss(reduction='mean') #F.binary_cross_entropy(out, batch.y)
-    #     loss = loss_fn(out, batch.y)
-    #     self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+    def validation_step(self, batch, batch_idx):
+        out = self(batch)
+        # loss = F.binary_cross_entropy(out, batch.y)
+        loss_fn = BCEWithLogitsLoss(reduction='mean') #F.binary_cross_entropy(out, batch.y)
+        loss = loss_fn(out, batch.y)
+        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
-    #     f1 = f1_score(out > 0.5, batch.y, average="samples")
-    #     self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        f1 = f1_score(y_pred=out > 0, y_true=batch.y, average="micro")
+        self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
-    #     return loss
+        return loss
 
 
     def test_step(self, batch, batch_idx):
         out = self(batch)
-        pred = (out > 0.5)
+        pred = (out > 0)
 
-        f1 = f1_score(pred, batch.y, average="samples")
+        f1 = f1_score(y_pred=pred, y_true=batch.y, average="micro")
         self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         print(f1)
         # TODO can add accuracy/precision/recall although not sure how that aggregates in multilabel setting
@@ -124,6 +124,6 @@ class induGAT(pl.LightningModule):
 
 if __name__ == "__main__":
     gat = induGAT(dataset='PPI', node_features=50, num_classes=121, lr=0.005, l2_reg=0)
-    trainer = pl.Trainer(max_epochs=20, limit_train_batches=0.1)
+    trainer = pl.Trainer(max_epochs=10)#, limit_train_batches=0.1)
     trainer.fit(gat)
     trainer.test()
