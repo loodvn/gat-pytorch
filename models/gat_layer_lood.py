@@ -12,9 +12,8 @@ class GATLayerLood(nn.Module):
         self.out_features = out_features
         self.num_heads = num_heads
 
-        self.W = nn.Linear(in_features=self.in_features, out_features=self.out_features, bias=False)  # TODO only 1 head for now
-
-        self.a = nn.Linear(in_features=2*self.out_features, out_features=1, bias=False)  # Attention coefficients
+        self.W = nn.Linear(in_features=self.in_features, out_features=self.num_heads*self.out_features, bias=False)
+        self.a = nn.Linear(in_features=2*(self.num_heads*self.out_features), out_features=self.num_heads, bias=False)  # Attention coefficients
 
         self.concat = concat # TODO could have some more aggregation functions
 
@@ -36,21 +35,26 @@ class GATLayerLood(nn.Module):
         source_edges, target_edges = edge_index
 
         # Transform features
-        node_features = self.W(x)  # (N, F_IN) -> (N, F_OUT)
-        assert node_features.size() == (N, self.out_features), f"{node_features.size()} != {N, self.out_features}"
+        node_features = self.W(x).view(N, self.num_heads, self.out_features)  # (N, F_IN) -> (N, NH*F_OUT)
 
         # Perform attention over neighbourhoods. Done in naive fashion (i.e. compute attention for all nodes)
-        source_representations = node_features[source_edges]   # shape: (E, F_OUT)
-        target_representations = node_features[target_edges]   # shape: (E, F_OUT)
-        attention_weights = self.a(torch.cat([source_representations, target_representations], dim=1))  # shape: (E, 2*F_OUT) -> (E, 1)
+        source_representations = node_features[source_edges]   # shape: (E, NH, F_OUT)
+        target_representations = node_features[target_edges]   # shape: (E, NH, F_OUT)
+        assert target_representations.size() == (E, self.num_heads, self.out_features), f"{target_representations.size()} != {(E, self.num_heads, self.out_features)}"
+
+        cat = torch.cat([source_representations, target_representations], dim=-1)
+        cat = cat.view(E, self.num_heads*(2*self.out_features))
+        attention_weights = self.a(cat)  # shape: (E, NH, 2*F_OUT) -> (E, NH*(2*F_OUT)) -> (E, NH, 1)
+        print("att size: ", attention_weights.size())
+        attention_weights = attention_weights.squeeze(-1)  # Squeeze last dim
         attention_weights = nn.LeakyReLU()(attention_weights)
-        assert attention_weights.size() == (E, self.num_heads)
+        assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
 
         # TODO can probably multiply logits with representations and then denominator afterwards?
         # Softmax over neighbourhoods
         attention_exp = attention_weights.exp()
         # Calculate the softmax denominator for each neighbourhood (target)
-        softmax_denom = attention_exp.new_zeros((N,self.num_heads))
+        softmax_denom = attention_exp.new_zeros((N, self.num_heads))  # Create new_zeros from attention_exp, so that the dtype matches nicely
         # Sum all elements according to the target edge. e.g. index=[0, 0, 0, 1, 1, 2], src=[1, 2, 3, 4, 5, 6] -> [1+2+3, 4+5, 6]
         # target needs to match src's shape according to scatter_add, so needs to be of size (E, NH), not (E,)
         target_idx = target_edges.unsqueeze(-1).expand_as(attention_exp)
@@ -60,15 +64,18 @@ class GATLayerLood(nn.Module):
         # Broadcast back up to (E,1) so that we can calculate softmax
         softmax_denom = torch.index_select(softmax_denom, dim=0, index=target_edges)
 
-        softmax = attention_exp / softmax_denom  # TODO add epsilon for stability?
+        softmax = attention_exp / softmax_denom  # shape: (E, NH) TODO add epsilon for stability?
+        print("softmax shape: ", softmax.size())
 
         # Multiply representations by attention coefficients
-        weighted_target_representations = target_representations * softmax
+        weighted_target_representations = target_representations * softmax.view(E, self.num_heads, 1)  # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
+        print(weighted_target_representations.size())
 
-        output_features = node_features.new_zeros((N,1))
+        output_features = node_features.new_zeros((N, self.num_heads, self.out_features))
+        target_idx = target_edges.unsqueeze(-1).unsqueeze(-1).expand_as(weighted_target_representations)  # TODO this is ugly
         # Aggregate again according to target edge.
         output_features.scatter_add_(dim=0, index=target_idx, src=weighted_target_representations)
-        assert output_features.size() == (N, self.num_heads)
+        assert output_features.size() == (N, self.num_heads, self.out_features)
 
         if self.concat:
             output_features = output_features.view(-1, self.num_heads*self.out_features)  # self.num_heads*self.out_features
@@ -122,5 +129,7 @@ if __name__ == "__main__":
     dataset = Planetoid(root='/tmp/cora', name='Cora')
 
     print(dataset[0])  # The entire graph is stored in dataset[0]
-    model = GATLayerLood(in_features=1433, out_features=2, num_heads=1, concat=False)  # just playing around with 3 heads and 2 output features
-    model.forward(dataset[0].x, dataset[0].edge_index)
+    model = GATLayerLood(in_features=1433, out_features=2, num_heads=3, concat=False)  # just playing around with 3 heads and 2 output features
+    out = model.forward(dataset[0].x, dataset[0].edge_index)
+    print(out.size())
+    print(out)

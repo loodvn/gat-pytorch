@@ -13,6 +13,7 @@ from models.gat_layer import GATLayer
 # TODO loading correctly
 # pl.seed_everything(42)
 
+
 class transGAT(pl.LightningModule):
     def __init__(self, dataset, node_features, num_classes, in_heads=8, out_heads=1, head_features=8, l2_reg=0.0005, lr = 0.005, dropout=0.6):
         super(transGAT, self).__init__()

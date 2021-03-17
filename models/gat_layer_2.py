@@ -11,9 +11,7 @@ class GATLayer_2(nn.Module):
         self.num_heads = num_heads
         self.input_features = input_features
         self.output_features = output_features
-        self.ls = nn.Linear(input_features, num_heads * output_features, bias=False) # ls stands for linear sum which is
-                                                                                     # the first linear projection defined
-                                                                                     # in the paper
+        self.W = nn.Linear(input_features, num_heads * output_features, bias=False)  # weight matrix W = (F_OUT, F_IN)
 
         # First dimension below is 1 to denote that we are calculating the attention of 1 node.
         # Second dimension denotes the number of heads, which have independent feature representation for each node.
