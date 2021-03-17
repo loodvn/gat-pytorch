@@ -15,7 +15,7 @@ class GATLayer_2(nn.Module):
                                                                                      # the first linear projection defined
                                                                                      # in the paper
 
-        # Dimension below is 1 to denote that we are calculating the attention of 1 node.
+        # First dimension below is 1 to denote that we are calculating the attention of 1 node.
         # Second dimension denotes the number of heads, which have independent feature representation for each node.
         # Third dimension is just the number of output features from previous layers/representations
 
@@ -46,7 +46,11 @@ class GATLayer_2(nn.Module):
 
         # calculate attention scores between edges
         self_node_attention = torch.sum(projection_node_features * self.self_attention_coefficient, dim=1)
-        neighbor_node_attention = torch.sump(rojection_node_features * self.neighbor_attention_coefficient, dim=1)
+        # shape: (N, NH, F_OUT) * (1, NH, F_OUT) -> (N, NH, F_OUT) -> (N, F_OUT)
+        assert self_node_attention.size() == (N, self.output_features)
+
+        # same shape as self-attention
+        neighbor_node_attention = torch.sum(projection_node_features * self.neighbor_attention_coefficient, dim=1)
 
         # now we calculate the attention for the nodes that have common edges (i.e. are connected)
         # for this to be more readable, we create a helper function "score_calculation" and we call that in here
@@ -56,15 +60,14 @@ class GATLayer_2(nn.Module):
         edge_scores = self.leakyReLu(source_scores + target_scores)  # here we normalise the scores for edges by summing
                                                                          # over the scores calculated for the source index
                                                                          # and the target index
-        total_nodes = node_features.shape[0]  # first dimension gives the total number of nodes from the input features
-        edge_attention = self.normalise_neighborhood(edge_scores, edge_index[1], total_nodes)
+        edge_attention = self.normalise_neighborhood(edge_scores, edge_index[1], N)
         edge_attention = self.dropout(edge_attention)
 
         # element-wise product
         projection_normalised_neighborhood = torch.mul(node_projection_matrix, edge_attention)
 
         # now summing the weighted & projected feature vectors for all neighbors
-        target_node_features = self.node_feature_normalised(projection_normalised_neighborhood, edge_index, total_nodes)
+        target_node_features = self.node_feature_normalised(projection_normalised_neighborhood, edge_index, N)
 
         output_node_features = self.node_features(edge_attention, node_features, target_node_features)
 
@@ -77,19 +80,19 @@ class GATLayer_2(nn.Module):
 
         source_index = edge_index[0]  # grab the source node from the edge index
         target_index = edge_index[1]  # target node from the edge index
-        source_scores = source_scores[source_index]
-        target_scores = target_scores[target_index]
+        source_node_score = source_node_score[source_index]
+        target_node_score = target_node_score[target_index]
         node_projection_matrix = projection_matrix[source_index]
 
-        return source_scores, target_scores, node_projection_matrix
+        return source_node_score, target_node_score, node_projection_matrix
 
-    def normalise_neighborhood(self, edge_scores, index, total_nodes):
+    def normalise_neighborhood(self, edge_scores, index, N):
         """ The function computes the softmax over the neighborhood of a node"""
         edge_scores = edge_scores.exp()  # exponentiate the scores
 
         # now we need to calculate the sum of the scores of the neighborhood of the edge and then divide this with the
         # exponential edge scores for every edge calculated from before
-        neighborhood_score = self.neighborhood_edge_sum(edge_scores, index, total_nodes)
+        neighborhood_score = self.neighborhood_edge_sum(edge_scores, index, N)
         edge_attention = edge_scores / neighborhood_score
         # here we change the shape from (E,no_heads) to (E,no_heads,1) for element-wise multiplication
         edge_attention = edge_attention.unsqueeze(-1)
@@ -109,7 +112,7 @@ class GATLayer_2(nn.Module):
 
         return sum_of_neighborhood.index_select(0, target_index)
 
-    def index_helper_function(self, first, second):
+    def index_helper_function(self, input, output):
         """ This function will help with the calculations as it essentially appends singleton dimensions
             until the inserted dimensions match. This will help when calculating neighborhood attention scores
             in cases where the neighbors aren't the same"""
@@ -117,7 +120,7 @@ class GATLayer_2(nn.Module):
         for _ in range(input.dim(), output.dim()):
             input = input.unsqueeze(-1)
             # return first.expand_as(second)
-        return input.expand(second.size())
+        return input.expand(output.size())
 
     def node_feature_normalised(self, projection_normalised_neighborhood, edge_index, node_features_output, nodes):
 
