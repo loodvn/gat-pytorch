@@ -1,46 +1,48 @@
+import torch
 import torch.nn as nn
 
 
 class GATLayer_2(nn.Module):
 
-    def __init__(self, input_features, output_features, no_heads, dropout=0.6, concat=True, activation=nn.ELU()):
+    def __init__(self, input_features, output_features, num_heads, dropout=0.6, concat=True, activation=nn.ELU()):
 
         super(GATLayer_2, self).__init__()
 
-        self.no_heads = no_heads
+        self.num_heads = num_heads
         self.input_features = input_features
         self.output_features = output_features
-        self.ls = nn.Linear(input_features, no_heads * output_features, bias=False) # ls stands for linear sum which is
-                                                                                    # the first linear projection defined
-                                                                                    # in the paper
+        self.ls = nn.Linear(input_features, num_heads * output_features, bias=False) # ls stands for linear sum which is
+                                                                                     # the first linear projection defined
+                                                                                     # in the paper
 
         # Dimension below is 1 to denote that we are calculating the attention of 1 node.
         # Second dimension denotes the number of heads, which have independent feature representation for each node.
         # Third dimension is just the number of output features from previous layers/representations
 
-        self.self_attention_coefficient = nn.Parameter(torch.Tensor(1, no_heads, output_features))# self-attention needs
+        self.self_attention_coefficient = nn.Parameter(torch.Tensor(1, num_heads, output_features))# self-attention needs
                                                                                     # to be defined even if there is no
                                                                                    # self-loop since we want to calculate
                                                                                    # self attention as well
 
-        self.neighbor_attention_coefficient = nn.Parameter(torch.Tensor(1, no_heads, output_features))
+        self.neighbor_attention_coefficient = nn.Parameter(torch.Tensor(1, num_heads, output_features))
         self.activation = activation        # ELU
-        self.leakyReLu = nn.LeakyRelu(0.2)  # what they use for the paper
+        self.leakyReLu = nn.LeakyReLU(0.2)  # what they use for the paper
         self.dropout = nn.Dropout(dropout)  # dropout layer
         self.concat = concat                # denotes whether we are concatenating feature representations from heads or
                                             # not. If at the last layer, we shouldn't concatenate but we should use the
                                             # mean
         self.reset_parameters()
 
-    def forward(self, input_data, return_attention=False):
-
-        node_features, edge_index = input_data
-        node_features = self.dropout(node_features) # we apply a dropout on all input features as described in the paper
+    def forward(self, x, edge_index, return_attention=False):
+        node_features = x  # Node features shape: (N, F_IN)
+        N = node_features.size(0)
+        E = edge_index.size(1)  # number of edges
+        node_features = self.dropout(node_features)  # we apply a dropout on all input features as described in the paper
 
         # we projecting the feature representations of the nodes
-        projection_node_features = self.ls(node_features)
-        projection_node_features = projection_node_features.view(-1, self.no_heads, self.output_features)  # reshape
-        projection_node_features = self.dropout(projection_node_features)  # dropping the features
+        projection_node_features = self.ls(node_features)  # shape: (N, F_IN) * (F_IN, NH*F_OUT) -> (N, NH*F_OUT)
+        projection_node_features = projection_node_features.view(-1, self.num_heads, self.output_features)  # shape: (N, NH, F_OUT)
+        projection_node_features = self.dropout(projection_node_features)  # dropout on features
 
         # calculate attention scores between edges
         self_node_attention = torch.sum(projection_node_features * self.self_attention_coefficient, dim=1)
@@ -49,7 +51,8 @@ class GATLayer_2(nn.Module):
         # now we calculate the attention for the nodes that have common edges (i.e. are connected)
         # for this to be more readable, we create a helper function "score_calculation" and we call that in here
         source_scores, target_scores, node_projection_matrix = self.score_calculation(self_node_attention,
-                                                                neighbor_node_attention,projection_node_features,edge_index)
+                                                                neighbor_node_attention, projection_node_features, edge_index)
+        print("source shape: ", source_scores.shape, "target shape: ", target_scores.shape, "node proj", node_projection_matrix.shape)
         edge_scores = self.leakyReLu(source_scores + target_scores)  # here we normalise the scores for edges by summing
                                                                          # over the scores calculated for the source index
                                                                          # and the target index
@@ -128,7 +131,7 @@ class GATLayer_2(nn.Module):
     def node_features(self, output_node_features):
 
         if self.concat:
-            output_node_features = output_node_features.view(-1, self.no_heads * self.output_features)
+            output_node_features = output_node_features.view(-1, self.num_heads * self.output_features)
 
         else:
             output_node_features = output_node_features.mean(dim=1)
@@ -136,7 +139,16 @@ class GATLayer_2(nn.Module):
         return self.activation(output_node_features) if self.activation is not None else output_node_features
 
     def reset_parameters(self):
+        nn.init.xavier_uniform_(self.ls.weight)  # TODO Check gain and ReLU stuff
+        nn.init.xavier_uniform_(self.self_attention_coefficient)
+        nn.init.xavier_uniform_(self.neighbor_attention_coefficient)
 
-        nn.init.xavier_uniform(self.ls.weight)
-        nn.init.xavier_uniform(self.self_attention_coefficient)
-        nn.init.xavier_uniform(self.neighbor_attention_coefficient)
+
+if __name__ == "__main__":
+    print("Debugging: Playing with Cora dataset")
+    from torch_geometric.datasets import Planetoid
+    dataset = Planetoid(root='/tmp/cora', name='Cora')
+    print(dataset[0])  # The entire graph is stored in dataset[0]
+    model = GATLayer_2(input_features=1433, output_features=2, num_heads=3)  # just playing around with 3 heads and 2 output features
+    model.forward(dataset[0].x, dataset[0].edge_index)
+
