@@ -18,6 +18,8 @@ from sklearn.metrics import f1_score
 
 # pl.seed_everything(42)
 
+# OW test
+
 class induGAT(pl.LightningModule):
     def __init__(self, dataset, node_features, num_classes, in_heads=4, mid_heads=4, out_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
         super(induGAT, self).__init__()
