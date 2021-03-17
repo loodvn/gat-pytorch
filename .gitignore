@@ -136,3 +136,7 @@ lightning_logs/
 
 # PyCharm
 .idea/
+
+*.jpg
+*.png
+.DS_Store
