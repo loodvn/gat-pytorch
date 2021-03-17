@@ -30,8 +30,6 @@ def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg
 def load(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads):
     print('I am loading :)')
     # Will need to change this as loaded dataset could be an induGAT
-    # loaded_model = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, lr=learning_rate, l2_reg=l2_reg, out_heads=out_heads).load_from_checkpoint(checkpoint_path=dataset+".ckpt")
-    # loaded_model = transGAT.load_from_checkpoint(checkpoint_path=dataset+".ckpt", dataset=dataset, node_features=node_features, num_classes=num_classes)
     loaded_model = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes)
     trainer = pl.Trainer(resume_from_checkpoint=dataset+".ckpt")
     # trainer = pl.Trainer()
@@ -45,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_epochs', default=100)
     parser.add_argument('--l2', default=0.0005)
     parser.add_argument('--lr', default=0.005)
-    parser.add_argument('--exec_type', default='train') # could also be load
+    parser.add_argument('--exec_type', default='train') 
 
     parser.add_argument('--histograms', default=False)
     parser.add_argument('--save', default=False)
@@ -56,11 +54,8 @@ if __name__ == "__main__":
     max_epochs = args.max_epochs
     learning_rate = args.lr
     l2_reg = args.l2
-
+    max_epochs=10
     out_heads = 1
-
-    print(args.save)
-
     
     if dataset == 'Cora':
         node_features = 1433
@@ -77,6 +72,7 @@ if __name__ == "__main__":
     elif dataset == 'PPI':
         node_features = 50
         num_classes = 121
+        l2_reg = 0
     else:
         sys.exit('Dataset is invalid')
 
