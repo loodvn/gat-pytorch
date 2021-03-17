@@ -1,4 +1,3 @@
-# tmp
 import torch
 from torch import nn
 
@@ -8,6 +7,7 @@ class GATLayerLood(nn.Module):
     def __init__(self, in_features, out_features, num_heads, concat):
         super(GATLayerLood, self).__init__()
 
+        print(f"tmp in_features={in_features}, out={out_features}, heads{num_heads}, concat={concat}")
         self.in_features = in_features
         self.out_features = out_features
         self.num_heads = num_heads
@@ -15,11 +15,12 @@ class GATLayerLood(nn.Module):
         self.W = nn.Linear(in_features=self.in_features, out_features=self.num_heads*self.out_features, bias=False)
         self.a = nn.Linear(in_features=2*(self.num_heads*self.out_features), out_features=self.num_heads, bias=False)  # Attention coefficients
 
-        self.concat = concat # TODO could have some more aggregation functions
+        self.concat = concat  # TODO could have some more aggregation functions
 
     def forward(self, x, edge_index):
         """
         Compute attention-weighted representations of all nodes in x
+
         :param x: Feature matrix of size (N, in_features), where N is the number of nodes
         :param edge_index: Edge indices of size (2, E), where E is the number of edges.
         The edges point from the first row to second row, i.e. edge i = [231, 100] will be an edge that points from 231 to 100.
@@ -37,6 +38,8 @@ class GATLayerLood(nn.Module):
         # Transform features
         node_features = self.W(x).view(N, self.num_heads, self.out_features)  # (N, F_IN) -> (N, NH*F_OUT)
 
+        # TODO add self-attention
+
         # Perform attention over neighbourhoods. Done in naive fashion (i.e. compute attention for all nodes)
         source_representations = node_features[source_edges]   # shape: (E, NH, F_OUT)
         target_representations = node_features[target_edges]   # shape: (E, NH, F_OUT)
@@ -44,9 +47,8 @@ class GATLayerLood(nn.Module):
 
         cat = torch.cat([source_representations, target_representations], dim=-1)
         cat = cat.view(E, self.num_heads*(2*self.out_features))
-        attention_weights = self.a(cat)  # shape: (E, NH, 2*F_OUT) -> (E, NH*(2*F_OUT)) -> (E, NH, 1)
+        attention_weights = self.a(cat)  # shape: (E, NH, 2*F_OUT) -> (E, NH*(2*F_OUT)) -> (E, NH)  # TODO the heads are mixing here (input fully connected to NH output) which is wrong
         print("att size: ", attention_weights.size())
-        attention_weights = attention_weights.squeeze(-1)  # Squeeze last dim
         attention_weights = nn.LeakyReLU()(attention_weights)
         assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
 
@@ -80,8 +82,9 @@ class GATLayerLood(nn.Module):
         if self.concat:
             output_features = output_features.view(-1, self.num_heads*self.out_features)  # self.num_heads*self.out_features
         else:
-            output_features = torch.mean(output_features, dim=-1)  # Aggregate over the different heads
+            output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
 
+        print("tmp output features shape: ", output_features.size())
         return output_features
 
     def forward_i(self, x, edge_index, i=0):
@@ -102,7 +105,7 @@ class GATLayerLood(nn.Module):
         print("in_neighbours = ", in_neighbours_idx)
 
         # Repeat node i's representation so that we can concat with all the neighbours
-        node_i_stacked = node_features[0].expand_as(node_features[in_neighbours_idx])
+        node_i_stacked = node_features[i].expand_as(node_features[in_neighbours_idx])
         print(node_i_stacked.size(), node_features[in_neighbours_idx].size())
         assert node_i_stacked.size() == node_features[in_neighbours_idx].size()
 
