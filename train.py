@@ -26,13 +26,16 @@ def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg
 
     if save:
         trainer.save_checkpoint(dataset + ".ckpt")
-    
+        print("Model has been saved")
+
+# add if no checkpoint file then train
 def load(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads):
     print('I am loading :)')
+    loaded_model = transGAT.load_from_checkpoint(checkpoint_path = dataset + ".ckpt", dataset=dataset, node_features=node_features, num_classes=num_classes)
     # Will need to change this as loaded dataset could be an induGAT
-    loaded_model = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes)
-    trainer = pl.Trainer(resume_from_checkpoint=dataset+".ckpt")
-    # trainer = pl.Trainer()
+    # loaded_model = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes)
+    # trainer = pl.Trainer(resume_from_checkpoint=dataset+".ckpt")
+    trainer = pl.Trainer()
     # trainer.fit(loaded_model)
     trainer.test(loaded_model)
 
@@ -54,7 +57,7 @@ if __name__ == "__main__":
     max_epochs = args.max_epochs
     learning_rate = args.lr
     l2_reg = args.l2
-    max_epochs=100
+    max_epochs=70
     out_heads = 1
     
     if dataset == 'Cora':

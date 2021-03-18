@@ -42,8 +42,8 @@ class transGAT(pl.LightningModule):
         # print(self.node_features)
         # print(self.num_classes)
 
-        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, dropout=self.dropout)#add_self_loops=True, # add self loops? GATLayer(in_channels=self.node_features, out_channels=self.head_features, number_of_heads=self.in_heads, dropout=self.dropout, alpha = 0.2)#
-        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, concat=False, dropout=self.dropout) #concat=False, GATLayer(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, number_of_heads=self.out_heads, concat=False, dropout=self.dropout, alpha = 0.2)#
+        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, add_self_loops=False, dropout=self.dropout)#add_self_loops=True, # add self loops? GATLayer(in_channels=self.node_features, out_channels=self.head_features, number_of_heads=self.in_heads, dropout=self.dropout, alpha = 0.2)#
+        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, add_self_loops=False, concat=False, dropout=self.dropout) #concat=False, GATLayer(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, number_of_heads=self.out_heads, concat=False, dropout=self.dropout, alpha = 0.2)#
         # print(self.gat1)
         # print(self.gat2)
 
@@ -81,8 +81,8 @@ class transGAT(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
         out = self(batch)
-        pred = out.argmax(dim=1)  # Use the class with highest probability.
-        correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
+        # pred = out.argmax(dim=1)  # Use the class with highest probability.
+        # correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
         val_loss = F.nll_loss(out[batch.val_mask], batch.y[batch.val_mask])
         # print(loss)
         #early stopping
@@ -107,11 +107,11 @@ class transGAT(pl.LightningModule):
         pred = out.argmax(dim=1)  # Use the class with highest probability.
 
         
-        # test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
-        # test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
+        test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
+        test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
 
-        correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
-        test_acc = (correct / batch.test_mask.sum().item())
+        # correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
+        # test_acc = (correct / batch.test_mask.sum().item())
         # print("correct ", correct)
         self.log('test_acc', test_acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         print("This is the test accuracy")
@@ -126,7 +126,7 @@ class transGAT(pl.LightningModule):
         # print(data.train_mask.sum().item())
         # print(data.val_mask.sum().item())
         # print(data.test_mask.sum().item())
-        return DataLoader(dataset)
+        return DataLoader(dataset) #, shuffle=True)
         
     def val_dataloader(self):
         dataset = Planetoid(root='/tmp/' + self.dataset, name=self.dataset)

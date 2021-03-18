@@ -5,10 +5,11 @@ import argparse
 from torch_geometric.datasets import PPI
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
+from torch.nn import Linear
 from torch.nn import Sigmoid
 from torch.nn import BCEWithLogitsLoss
 import pytorch_lightning as pl
-from gat_layer import GATLayer
+from models.gat_layer import GATLayer
 from sklearn.metrics import f1_score
 
 # TODO improve logging, e.g. tensorboard
@@ -34,13 +35,16 @@ class induGAT(pl.LightningModule):
         self.l2_reg = l2_reg
         self.dropout = dropout
 
+        # These now dont need to be passed in and can be set in dataloader
         self.node_features = node_features
         self.num_classes = num_classes
 
         self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, add_self_loops=True, heads=self.in_heads)#, add_self_loops=True, dropout=self.dropout) 
-        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.head_features, heads=self.mid_heads) #dropout=self.dropout) 
-        self.gat3 = GATConv(in_channels=self.head_features * self.mid_heads, out_channels=self.num_classes, heads=out_heads, concat=False)#, dropout=self.dropout)
+        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.head_features, add_self_loops=True, heads=self.mid_heads) #dropout=self.dropout) 
+        self.gat3 = GATConv(in_channels=self.head_features * self.mid_heads, out_channels=self.num_classes, add_self_loops=True, heads=out_heads, concat=False)#, dropout=self.dropout)
 
+        self.skip_connection = Linear(self.head_features * self.in_heads, self.head_features * self.mid_heads, bias=False)
+        
         # These will be initialised in prepare_data
         self.train_ds, self.val_ds, self.test_ds = None, None, None
 
@@ -50,12 +54,10 @@ class induGAT(pl.LightningModule):
 
         x = self.gat1(x, edge_index)
         x = F.elu(x)
-        # layer1_skip = x  # add skip connection between layer 1 output and layer 3 input
-        # print(layer1_skip)
         x = self.gat2(x, edge_index)
         x = F.elu(x)
-        # print(layer1_skip)
-        x = self.gat3(x , edge_index) #+ layer1_skip
+        skip_values = self.skip_connection(x)
+        x = self.gat3(x + skip_values, edge_index)
         # print(x)
         # s = Sigmoid()
         # x = s(x)
@@ -98,7 +100,7 @@ class induGAT(pl.LightningModule):
         pred = (out > 0)
 
         f1 = f1_score(y_pred=pred, y_true=batch.y, average="micro")
-        self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         print(f1)
         # TODO can add accuracy/precision/recall although not sure how that aggregates in multilabel setting
 
@@ -116,7 +118,7 @@ class induGAT(pl.LightningModule):
 
     # Only for PPI dataset at this stage - move into train.py
     def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=2, shuffle=True)        
+        return DataLoader(self.train_ds, batch_size=1, shuffle=True)        
     
     def val_dataloader(self):
         return DataLoader(self.val_ds) 
