@@ -1,11 +1,14 @@
-import torch
-import sys
-import torch.nn.functional as F
 import argparse
+import sys
+
+import pytorch_lightning as pl
+import torch
+import torch.nn.functional as F
+from torch import nn
 from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
-import pytorch_lightning as pl
+
 from models.gat_layer import GATLayer
 from models.gat_layer_lood import GATLayerLood
 
@@ -44,10 +47,10 @@ class transGAT(pl.LightningModule):
         # print(self.node_features)
         # print(self.num_classes)
 
-        # self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, dropout=self.dropout)#add_self_loops=True, # add self loops? GATLayer(in_channels=self.node_features, out_channels=self.head_features, number_of_heads=self.in_heads, dropout=self.dropout, alpha = 0.2)#
-        self.gat1 = GATLayerLood(in_features=self.node_features, out_features=self.head_features, num_heads=self.in_heads, concat=True)
-        # self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, concat=False, dropout=self.dropout) #concat=False, GATLayer(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, number_of_heads=self.out_heads, concat=False, dropout=self.dropout, alpha = 0.2)#
-        self.gat2 = GATLayerLood(in_features=self.head_features*self.in_heads, out_features=self.num_classes, num_heads=out_heads, concat=False)
+        # self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, dropout=self.dropout, bias=False)#add_self_loops=True, # add self loops? GATLayer(in_channels=self.node_features, out_channels=self.head_features, number_of_heads=self.in_heads, dropout=self.dropout, alpha = 0.2)#
+        self.gat1 = GATLayerLood(in_features=self.node_features, out_features=self.head_features, num_heads=self.in_heads, concat=True, dropout=self.dropout, bias=False)
+        # self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, concat=False, dropout=self.dropout, bias=False) #concat=False, GATLayer(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, number_of_heads=self.out_heads, concat=False, dropout=self.dropout, alpha = 0.2)#
+        self.gat2 = GATLayerLood(in_features=self.head_features*self.in_heads, out_features=self.num_classes, num_heads=out_heads, concat=False, dropout=self.dropout, bias=False)
         # print(self.gat1)
         # print(self.gat2)
 
@@ -60,15 +63,13 @@ class transGAT(pl.LightningModule):
 
         # dropout to avoid overfitting as dataset is small
         print(self.training)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        # x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.gat1(x, edge_index)
-        x = F.elu(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = nn.ELU()(x)
+        # x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.gat2(x, edge_index)
-        print("x size: ", x.size())
 
-        return F.log_softmax(x, dim=1) 
-
+        return F.log_softmax(x, dim=1)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
