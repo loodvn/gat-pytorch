@@ -7,7 +7,7 @@ from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
 from torch.nn import Sigmoid
 import pytorch_lightning as pl
-from gat_layer import GATLayer
+# from gat_layer import GATLayer
 from sklearn.metrics import f1_score
 
 # TODO improve logging, e.g. tensorboard
@@ -17,8 +17,10 @@ from sklearn.metrics import f1_score
 
 pl.seed_everything(42)
 
+
 class induGAT(pl.LightningModule):
-    def __init__(self, dataset, node_features, num_classes, in_heads=4, mid_heads=4, out_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
+    def __init__(self, dataset, node_features, num_classes, in_heads=4, mid_heads=4, out_heads=6, head_features=256,
+                 l2_reg=0, lr=0.005, dropout=0):
         super(induGAT, self).__init__()
         self.dataset = dataset
 
@@ -34,13 +36,16 @@ class induGAT(pl.LightningModule):
         self.node_features = node_features
         self.num_classes = num_classes
 
-        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, add_self_loops=True, heads=self.in_heads)#, add_self_loops=True, dropout=self.dropout) 
-        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.head_features, heads=self.mid_heads) #dropout=self.dropout) 
-        self.gat3 = GATConv(in_channels=self.head_features * self.mid_heads, out_channels=self.num_classes, heads=out_heads, concat=False)#, dropout=self.dropout)
+        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, add_self_loops=True,
+                            heads=self.in_heads)  # , add_self_loops=True, dropout=self.dropout)
+        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.head_features,
+                            heads=self.mid_heads)  # dropout=self.dropout)
+        self.gat3 = GATConv(in_channels=self.head_features * self.mid_heads, out_channels=self.num_classes,
+                            heads=out_heads, concat=False)  # , dropout=self.dropout)
 
         # These will be initialised in prepare_data
         self.train_ds, self.val_ds, self.test_ds = None, None, None
-
+        self.batch_size = 2
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
@@ -50,24 +55,24 @@ class induGAT(pl.LightningModule):
         layer1_skip = x  # add skip connection between layer 1 output and layer 3 input
         x = self.gat2(x, edge_index)
         x = F.elu(x)
-        x = self.gat3(x + layer1_skip, edge_index) #+layer1_skip
+        x = self.gat3(x + layer1_skip, edge_index)  # +layer1_skip
         s = Sigmoid()
         x = s(x)
 
         return x
 
-
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)#, weight_decay=self.l2_reg)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)  # , weight_decay=self.l2_reg)
         return optimizer
 
     def training_step(self, batch, batch_idx):
+        # print("batch dims: ", batch.x.size())
         out = self(batch)
-        print("sigmoid error: ", (out[0]-batch.y[0]))
+        # print("sigmoid error: ", (out[0]-batch.y[0]))
         loss = F.binary_cross_entropy(out, batch.y)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        
-        f1 = f1_score(out > 0.5, batch.y, average="samples")
+
+        f1 = f1_score(out.detach().cpu().numpy() > 0.5, batch.y.detach().cpu().numpy(), average="micro")
         self.log('train_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
@@ -76,18 +81,19 @@ class induGAT(pl.LightningModule):
         out = self(batch)
         loss = F.binary_cross_entropy(out, batch.y)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        
-        f1 = f1_score(out > 0.5, batch.y, average="samples")
+        # print("tmp out", out)
+        # print("tmp preds:", out.detach().cpu().numpy() > 0.5)
+
+        f1 = f1_score(out.detach().cpu().numpy() > 0.5, batch.y.detach().cpu().numpy(), average="micro")
         self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
-
 
     def test_step(self, batch, batch_idx):
         out = self(batch)
         pred = (out > 0.5)
 
-        f1 = f1_score(pred, batch.y, average="samples")
+        f1 = f1_score(out.detach().cpu().numpy() > 0.5, batch.y.detach().cpu().numpy(), average="micro")
         self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         print(f1)
         # TODO can add accuracy/precision/recall although not sure how that aggregates in multilabel setting
@@ -106,16 +112,20 @@ class induGAT(pl.LightningModule):
 
     # Only for PPI dataset at this stage - move into train.py
     def train_dataloader(self):
-        return DataLoader(self.train_ds, shuffle=True)        
-    
+        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True)
+
     def val_dataloader(self):
-        return DataLoader(self.val_ds) 
+        return DataLoader(self.val_ds, batch_size=self.batch_size)
 
     def test_dataloader(self):
-        return DataLoader(self.test_ds)
+        return DataLoader(self.test_ds, batch_size=self.batch_size)
+
 
 if __name__ == "__main__":
+    import time
+    start = time.time()
     gat = induGAT(dataset='PPI', node_features=50, num_classes=121, lr=0.005, l2_reg=0)
     trainer = pl.Trainer(max_epochs=100)#, limit_train_batches=0.1)
     trainer.fit(gat)
     trainer.test()
+    end = time.time()

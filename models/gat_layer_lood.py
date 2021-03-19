@@ -5,7 +5,7 @@ from .utils import add_remaining_self_loops
 
 class GATLayerLood(nn.Module):
     """Minimal GAT Layer, playing around"""
-    def __init__(self, in_features, out_features, num_heads, concat, dropout=0, add_self_loops=True, bias=True, activation=nn.ELU()):
+    def __init__(self, in_features, out_features, num_heads, concat, dropout=0, add_self_loops=True, bias=True):
         """
         TODO docstring
         :param in_features:
@@ -23,14 +23,18 @@ class GATLayerLood(nn.Module):
         self.out_features = out_features
         self.num_heads = num_heads
         self.concat = concat
-        self.dropout = 0 #dropout
+        self.dropout = dropout
         self.add_self_loops = add_self_loops
         self.bias = bias
 
+        # TODO bias is a parameter added to output independently
         # Weight matrix from paper
-        self.W = nn.Linear(in_features=self.in_features, out_features=self.num_heads*self.out_features, bias=self.bias)
+        self.W = nn.Linear(in_features=self.in_features, out_features=self.num_heads*self.out_features, bias=False)
         # Attentional mechanism from paper
-        self.a = nn.Linear(in_features=self.num_heads*(2*self.out_features), out_features=self.num_heads, bias=self.bias)  # Attention coefficients
+        # TODO trying to figure out shapes
+        # self.a = nn.Parameter(torch.Tensor(1, self.num_heads, (2*self.out_features)))  # NH different matrices of size 2*F_OUT
+
+        self.a = nn.Linear(in_features=self.num_heads*(2*self.out_features), out_features=self.num_heads, bias=False)  # Attention coefficients
         self.normalised_attention_coeffs = None
 
     def forward(self, x, edge_index, return_attention_coeffs=False):
@@ -57,22 +61,31 @@ class GATLayerLood(nn.Module):
             x = nn.Dropout(p=self.dropout)(x)
         
         # Transform features
-        node_features = self.W(x).view(N, self.num_heads, self.out_features)  # (N, F_IN) -> (N, NH*F_OUT)
-        if self.dropout > 0:
-            node_features = nn.Dropout(p=self.dropout)(node_features)
+        nodes_transformed = self.W(x)  # (N, F_IN) -> (N, NH*F_OUT)
+        nodes_transformed = nodes_transformed.view(N, self.num_heads, self.out_features)  # -> (N, NH, F_OUT)
+        # if self.dropout > 0:
+        #     nodes_transformed = nn.Dropout(p=self.dropout)(nodes_transformed)
 
         # Perform attention over neighbourhoods. Done in naive fashion (i.e. compute attention for all nodes)
-        source_representations = node_features[source_edges]   # shape: (E, NH, F_OUT)
-        target_representations = node_features[target_edges]   # shape: (E, NH, F_OUT)
-        assert target_representations.size() == (E, self.num_heads, self.out_features), f"{target_representations.size()} != {(E, self.num_heads, self.out_features)}"
+        source_transformed = nodes_transformed[source_edges]   # shape: (E, NH, F_OUT)
+        target_transformed = nodes_transformed[target_edges]   # shape: (E, NH, F_OUT)
+        assert target_transformed.size() == (E, self.num_heads, self.out_features), f"{target_transformed.size()} != {(E, self.num_heads, self.out_features)}"
 
         # Equation (1)
-        attention_pairs = torch.cat([source_representations, target_representations], dim=-1)
+        attention_pairs = torch.cat([source_transformed, target_transformed], dim=-1)  # shape: (E, NH, 2*F_OUT)
+        # Trying attention as a tensor
+        # attention_weights = (self.a * attention_pairs).sum(dim=-1)  # Calculate dot product over last dimension (the output features) to get (E, NH)
+
         # (E, NH, 2*F_OUT) -> (E, NH*(2*F_OUT)): self.a expects an input of size (NH*(2*F_OUT))
         attention_pairs = attention_pairs.view(E, self.num_heads*(2*self.out_features))
         attention_weights = self.a(attention_pairs)  # shape: (E, NH*(2*F_OUT)) -> (E, NH)  # TODO the heads are mixing here (input fully connected to NH output) which is wrong
         attention_weights = nn.LeakyReLU()(attention_weights)
         assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
+        print("tmp attention weights norm, mean, min, max, std", attention_weights.norm(), attention_weights.mean(), attention_weights.min(), attention_weights.max(), attention_weights.std())
+
+        # Setting to constant attention, see what happens
+        attention_weights = attention_weights.detach()
+        attention_weights = torch.zeros(attention_weights.size())
 
         # TODO can probably multiply logits with representations and then denominator afterwards?
         # Softmax over neighbourhoods: Equation (2)/(3)
@@ -84,24 +97,32 @@ class GATLayerLood(nn.Module):
         target_idx = target_edges.unsqueeze(-1).expand_as(attention_exp)
         assert target_idx.size() == attention_exp.size()
         softmax_denom.scatter_add_(dim=0, index=target_idx, src=attention_exp)  # shape: (E,NH) -> (N,NH)
+        print("tmp softmax denom ordered by node id = degree =", softmax_denom)
+
         assert softmax_denom.size() == (N, self.num_heads), f"{softmax_denom.size()} != {(N, self.num_heads)}"
-        # Broadcast back up to (E,NH) so that we can calculate softmax
+        # Broadcast back up to (E,NH) so that we can calculate softmax by dividing each edge by denominator
         softmax_denom = torch.index_select(softmax_denom, dim=0, index=target_edges)
+        print("softmax denom after broadcasting up to E edges, ordered by edge", softmax_denom)
 
         normalised_attention_coeffs = attention_exp / softmax_denom  # shape: (E, NH) TODO add epsilon for stability?
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
+        print("tmp normalized coeffs per edge: ", normalised_attention_coeffs)
+        print("tmp attention exp per node: ", attention_exp)
 
         # Dropout on normalized attention coefficients
         if self.dropout > 0:
             normalised_attention_coeffs = nn.Dropout(p=self.dropout)(normalised_attention_coeffs)
 
-        # Multiply representations by attention coefficients: Equation (4)
-        weighted_target_representations = normalised_attention_coeffs.view(E, self.num_heads, 1) * target_representations   # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
+        # Multiply all nodes in neighbourhood (with incoming edges) by attention coefficients: Inside parenthesis of Equation (4)
+        weighted_neighbourhood_features = normalised_attention_coeffs.view(E, self.num_heads, 1) * target_transformed   # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
+        assert weighted_neighbourhood_features.size() == (E, self.num_heads, self.out_features)
 
-        output_features = node_features.new_zeros((N, self.num_heads, self.out_features))
-        target_idx = target_edges.unsqueeze(-1).unsqueeze(-1).expand_as(weighted_target_representations)  # TODO this is ugly
-        # Get the attention-weighted sum of neighbours. Aggregate again according to target edge.
-        output_features.scatter_add_(dim=0, index=target_idx, src=weighted_target_representations)
+        # Get the attention-weighted sum of neighbours: Equation (4). Aggregate again according to target edge.
+        output_features = nodes_transformed.new_zeros((N, self.num_heads, self.out_features))
+        # Turns target edges into correct shape: E -> (E, 1, 1) -> (E, NH, F_OUT)           TODO this is ugly
+        target_idx = target_edges.unsqueeze(-1).unsqueeze(-1).expand_as(weighted_neighbourhood_features)
+
+        output_features.scatter_add_(dim=0, index=target_idx, src=weighted_neighbourhood_features)
         assert output_features.size() == (N, self.num_heads, self.out_features)
 
         # Equation (5)/(6)
@@ -109,8 +130,6 @@ class GATLayerLood(nn.Module):
             output_features = output_features.view(-1, self.num_heads*self.out_features)  # self.num_heads*self.out_features
         else:
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
-
-        print("tmp output features shape: ", output_features.size())
 
         if return_attention_coeffs:
             return output_features, (edge_index, self.normalised_attention_coeffs)
@@ -162,7 +181,47 @@ if __name__ == "__main__":
     dataset = Planetoid(root='/tmp/cora', name='Cora')
 
     print(dataset[0])  # The entire graph is stored in dataset[0]
-    model = GATLayerLood(in_features=1433, out_features=2, num_heads=3, concat=False)  # just playing around with 3 heads and 2 output features
+    model = GATLayerLood(in_features=1433, out_features=7, num_heads=3, concat=False)  # just playing around with 3 heads and 2 output features
     out = model.forward(dataset[0].x, dataset[0].edge_index)
     print(out.size())
     print(out)
+
+
+# For reference:
+#     def forward_i(self, x, edge_index, i=0):
+#         """
+#         Forward pass for node i. Useful for understanding.
+#         forward() should be equivalent to running forward_i for all i?
+#         """
+#         N = x.size(0)
+#         E = edge_index.size(1)
+#
+#         # Transform features
+#         node_features = self.W(x)  # (N, F_IN) -> (N, F_OUT)
+#         assert node_features.size() == (N, self.out_features)
+#
+#         # Perform attention on all incoming nodes with i TODO extend later
+#         i_idx = (edge_index[1] == i)
+#         in_neighbours_idx = edge_index[0][i_idx]
+#         print("in_neighbours = ", in_neighbours_idx)
+#
+#         # Repeat node i's representation so that we can concat with all the neighbours
+#         node_i_stacked = node_features[i].expand_as(node_features[in_neighbours_idx])
+#         print(node_i_stacked.size(), node_features[in_neighbours_idx].size())
+#         assert node_i_stacked.size() == node_features[in_neighbours_idx].size()
+#
+#         # Compute attention weights (scalars)
+#         attention_weights_i = self.a(torch.cat([node_i_stacked, node_features[in_neighbours_idx]], dim=-1))
+#         print("att weights: ", attention_weights_i.size(), in_neighbours_idx.size(0))
+#         assert attention_weights_i.size() == (in_neighbours_idx.size(0), 1)
+#
+#         attention_weights_i = nn.LeakyReLU()(attention_weights_i)
+#
+#         softmax_attention = nn.Softmax(dim=0)(attention_weights_i)  # Softmax over j, the different neighbours (dim=0)
+#
+#         # Use attention weights for this neighbourhood to weight features
+#         h_i = torch.sum(softmax_attention * node_features[in_neighbours_idx], dim=0)  # (num_neighbourhood, 1) * (num_neighbourhood, F_OUT) -> (F_OUT)
+#         print('h_i', h_i.size())
+#         assert h_i.size() == (self.out_features,)
+#
+#         return h_i
