@@ -46,9 +46,9 @@ class transGAT(pl.LightningModule):
         # print(self.num_classes)
 
         # self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, dropout=self.dropout, bias=False, add_self_loops=False)
-        self.gat1 = GATLayer(in_features=self.node_features, out_features=self.head_features, num_heads=self.in_heads, concat=True, dropout=self.dropout, bias=False, add_self_loops=False)
+        self.gat1 = GATLayer(in_features=self.node_features, out_features=self.head_features, num_heads=self.in_heads, concat=True, dropout=self.dropout, bias=False, add_self_loops=False, const_attention=False)
         # self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, concat=False, dropout=self.dropout, bias=False, add_self_loops=False)
-        self.gat2 = GATLayer(in_features=self.head_features * self.in_heads, out_features=self.num_classes, num_heads=out_heads, concat=False, dropout=self.dropout, bias=False, add_self_loops=False)
+        self.gat2 = GATLayer(in_features=self.head_features * self.in_heads, out_features=self.num_classes, num_heads=out_heads, concat=False, dropout=self.dropout, bias=False, add_self_loops=False, const_attention=False)
         # print(self.gat1)
         # print(self.gat2)
 

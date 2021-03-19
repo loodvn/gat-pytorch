@@ -6,7 +6,7 @@ from .utils import add_remaining_self_loops
 
 class GATLayer(nn.Module):
     """Minimal GAT Layer, playing around"""
-    def __init__(self, in_features, out_features, num_heads, concat, dropout=0, add_self_loops=False, bias=False):
+    def __init__(self, in_features, out_features, num_heads, concat, dropout=0, add_self_loops=False, bias=False, const_attention=False):
         """
         TODO docstring
         :param in_features:
@@ -27,6 +27,7 @@ class GATLayer(nn.Module):
         self.dropout = dropout
         self.add_self_loops = add_self_loops
         self.bias = bias
+        self.const_attention = const_attention
 
         # TODO bias is a parameter added to output independently
         # Weight matrix from paper
@@ -35,7 +36,9 @@ class GATLayer(nn.Module):
         # TODO trying to figure out shapes
         # self.a = nn.Parameter(torch.Tensor(1, self.num_heads, (2*self.out_features)))  # NH different matrices of size 2*F_OUT
 
-        self.a = nn.Linear(in_features=self.num_heads*(2*self.out_features), out_features=self.num_heads, bias=False)  # Attention coefficients
+        if not const_attention:
+            self.a = nn.Linear(in_features=self.num_heads*(2*self.out_features), out_features=self.num_heads, bias=False)  # Attention coefficients
+
         self.normalised_attention_coeffs = None
         self.reset_parameters()
 
@@ -74,18 +77,20 @@ class GATLayer(nn.Module):
         assert target_transformed.size() == (E, self.num_heads, self.out_features), f"{target_transformed.size()} != {(E, self.num_heads, self.out_features)}"
 
         # Equation (1)
-        attention_pairs = torch.cat([source_transformed, target_transformed], dim=-1)  # shape: (E, NH, 2*F_OUT)
-        # Trying attention as a tensor
-        # attention_weights = (self.a * attention_pairs).sum(dim=-1)  # Calculate dot product over last dimension (the output features) to get (E, NH)
+        if not self.const_attention:
+            attention_pairs = torch.cat([source_transformed, target_transformed], dim=-1)  # shape: (E, NH, 2*F_OUT)
+            # Trying attention as a tensor
+            # attention_weights = (self.a * attention_pairs).sum(dim=-1)  # Calculate dot product over last dimension (the output features) to get (E, NH)
 
-        # (E, NH, 2*F_OUT) -> (E, NH*(2*F_OUT)): self.a expects an input of size (NH*(2*F_OUT))
-        attention_pairs = attention_pairs.view(E, self.num_heads*(2*self.out_features))
-        attention_weights = self.a(attention_pairs)  # shape: (E, NH*(2*F_OUT)) -> (E, NH)  # TODO the heads are mixing here (input fully connected to NH output) which is wrong
-        attention_weights = nn.LeakyReLU()(attention_weights)
-        assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
-        # Setting to constant attention, see what happens
-        attention_weights = attention_weights.detach()
-        attention_weights = torch.zeros(attention_weights.size())
+            # (E, NH, 2*F_OUT) -> (E, NH*(2*F_OUT)): self.a expects an input of size (NH*(2*F_OUT))
+            attention_pairs = attention_pairs.view(E, self.num_heads*(2*self.out_features))
+            attention_weights = self.a(attention_pairs)  # shape: (E, NH*(2*F_OUT)) -> (E, NH)
+            attention_weights = nn.LeakyReLU()(attention_weights)
+            assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
+        else:
+            # Setting to constant attention, see what happens
+            # If attention_weights = 0, then e^0 = 1 so the exponentiated attention weights will = 1
+            attention_weights = torch.zeros((E, self.num_heads))
 
         # TODO can probably multiply logits with representations and then denominator afterwards?
         # Softmax over neighbourhoods: Equation (2)/(3)
@@ -132,7 +137,8 @@ class GATLayer(nn.Module):
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.W.weight)
         # nn.init.xavier_uniform_(self.a)
-        nn.init.xavier_uniform_(self.a.weight)
+        if not self.const_attention:
+            nn.init.xavier_uniform_(self.a.weight)
         # Can also init bias=0 if on
 
     def sum_over_neighbourhood(self, values: torch.tensor, neighbourhood_indices: torch.tensor, aggregated_shape, return_original_size: bool = False) -> torch.tensor:
