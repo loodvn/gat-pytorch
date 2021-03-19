@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 from torch import nn
 from .utils import add_remaining_self_loops
@@ -36,6 +38,7 @@ class GATLayerLood(nn.Module):
 
         self.a = nn.Linear(in_features=self.num_heads*(2*self.out_features), out_features=self.num_heads, bias=False)  # Attention coefficients
         self.normalised_attention_coeffs = None
+        self.reset_parameters()
 
     def forward(self, x, edge_index, return_attention_coeffs=False):
         """
@@ -90,21 +93,18 @@ class GATLayerLood(nn.Module):
         # TODO can probably multiply logits with representations and then denominator afterwards?
         # Softmax over neighbourhoods: Equation (2)/(3)
         attention_exp = attention_weights.exp()
-        # Calculate the softmax denominator for each neighbourhood (target)
-        softmax_denom = attention_exp.new_zeros((N, self.num_heads))  # Create new_zeros from attention_exp, so that the dtype matches nicely
-        # Sum all elements according to the target edge. e.g. index=[0, 0, 0, 1, 1, 2], src=[1, 2, 3, 4, 5, 6] -> [1+2+3, 4+5, 6]
-        # target needs to match src's shape according to scatter_add, so needs to be of size (E, NH), not (E,)
-        target_idx = target_edges.unsqueeze(-1).expand_as(attention_exp)
-        assert target_idx.size() == attention_exp.size()
-        softmax_denom.scatter_add_(dim=0, index=target_idx, src=attention_exp)  # shape: (E,NH) -> (N,NH)
-        print("tmp softmax denom ordered by node id = degree =", softmax_denom)
+        # Calculate the softmax denominator for each neighbourhood (target): sum attention exponents for each neighbourhood
+        attention_softmax_denom = self.sum_over_neighbourhood(
+            values=attention_exp,
+            neighbourhood_indices=target_edges,
+            aggregated_shape=(N, self.num_heads),
+        )
 
-        assert softmax_denom.size() == (N, self.num_heads), f"{softmax_denom.size()} != {(N, self.num_heads)}"
         # Broadcast back up to (E,NH) so that we can calculate softmax by dividing each edge by denominator
-        softmax_denom = torch.index_select(softmax_denom, dim=0, index=target_edges)
-        print("softmax denom after broadcasting up to E edges, ordered by edge", softmax_denom)
+        attention_softmax_denom = torch.index_select(attention_softmax_denom, dim=0, index=target_edges)
+        print("softmax denom after broadcasting up to E edges, ordered by edge", attention_softmax_denom)
 
-        normalised_attention_coeffs = attention_exp / softmax_denom  # shape: (E, NH) TODO add epsilon for stability?
+        normalised_attention_coeffs = attention_exp / attention_softmax_denom  # shape: (E, NH) TODO add epsilon for stability?
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
         print("tmp normalized coeffs per edge: ", normalised_attention_coeffs)
         print("tmp attention exp per node: ", attention_exp)
@@ -118,12 +118,11 @@ class GATLayerLood(nn.Module):
         assert weighted_neighbourhood_features.size() == (E, self.num_heads, self.out_features)
 
         # Get the attention-weighted sum of neighbours: Equation (4). Aggregate again according to target edge.
-        output_features = nodes_transformed.new_zeros((N, self.num_heads, self.out_features))
-        # Turns target edges into correct shape: E -> (E, 1, 1) -> (E, NH, F_OUT)           TODO this is ugly
-        target_idx = target_edges.unsqueeze(-1).unsqueeze(-1).expand_as(weighted_neighbourhood_features)
-
-        output_features.scatter_add_(dim=0, index=target_idx, src=weighted_neighbourhood_features)
-        assert output_features.size() == (N, self.num_heads, self.out_features)
+        output_features = self.sum_over_neighbourhood(
+            values=weighted_neighbourhood_features,
+            neighbourhood_indices=target_edges,
+            aggregated_shape=(N, self.num_heads, self.out_features),
+        )
 
         # Equation (5)/(6)
         if self.concat:
@@ -135,44 +134,52 @@ class GATLayerLood(nn.Module):
             return output_features, (edge_index, self.normalised_attention_coeffs)
 
         return output_features
+    
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.W.weight)
+        # nn.init.xavier_uniform_(self.a)
+        nn.init.xavier_uniform_(self.a.weight)
+        # Can also init bias=0 if on
 
-    def forward_i(self, x, edge_index, i=0):
+    def sum_over_neighbourhood(self, values: torch.tensor, neighbourhood_indices: torch.tensor, aggregated_shape, return_original_size: bool = False) -> torch.tensor:
         """
-        Forward pass for node i. Useful for understanding.
-        forward() should be equivalent to running forward_i for all i?
+        Aggregate values over N neighbourhoods using torch.scatter_add, with some extra size checking.
+        Optionally return the values broadcasted back up to original size after summing.
+
+        TODO params
+        :param values:
+        :param neighbourhood_indices:
+        :param aggregated_shape:
+        :param return_original_size:
+        :return:
         """
-        N = x.size(0)
-        E = edge_index.size(1)
 
-        # Transform features
-        node_features = self.W(x)  # (N, F_IN) -> (N, F_OUT)
-        assert node_features.size() == (N, self.out_features)
+        # Create a new tensor in which to store the aggregated values. Created using the values tensor, so that the dtype and device match
+        aggregated = values.new_zeros(aggregated_shape)
 
-        # Perform attention on all incoming nodes with i TODO extend later
-        i_idx = (edge_index[1] == i)
-        in_neighbours_idx = edge_index[0][i_idx]
-        print("in_neighbours = ", in_neighbours_idx)
+        # scatter_add requires target to match src's shape, e.g. needs to be of size (E, NH), not (E,)
+        target_idx = explicit_broadcast(neighbourhood_indices, values)
 
-        # Repeat node i's representation so that we can concat with all the neighbours
-        node_i_stacked = node_features[i].expand_as(node_features[in_neighbours_idx])
-        print(node_i_stacked.size(), node_features[in_neighbours_idx].size())
-        assert node_i_stacked.size() == node_features[in_neighbours_idx].size()
+        # Sum all elements according to the neighbourhood index. e.g. index=[0, 0, 0, 1, 1, 2], src=[1, 2, 3, 4, 5, 6] -> [1+2+3, 4+5, 6]
+        aggregated.scatter_add_(dim=0, index=target_idx, src=values)  # shape: (E,NH) -> (N,NH)
 
-        # Compute attention weights (scalars)
-        attention_weights_i = self.a(torch.cat([node_i_stacked, node_features[in_neighbours_idx]], dim=-1))
-        print("att weights: ", attention_weights_i.size(), in_neighbours_idx.size(0))
-        assert attention_weights_i.size() == (in_neighbours_idx.size(0), 1)
+        assert aggregated.size() == aggregated_shape, f"Aggregated size incorrect. Is {aggregated.size()}, should be {aggregated_shape}"
 
-        attention_weights_i = nn.LeakyReLU()(attention_weights_i)
+        return aggregated
 
-        softmax_attention = nn.Softmax(dim=0)(attention_weights_i)  # Softmax over j, the different neighbours (dim=0)
 
-        # Use attention weights for this neighbourhood to weight features
-        h_i = torch.sum(softmax_attention * node_features[in_neighbours_idx], dim=0)  # (num_neighbourhood, 1) * (num_neighbourhood, F_OUT) -> (F_OUT)
-        print('h_i', h_i.size())
-        assert h_i.size() == (self.out_features,)
+# Copied helper function from Aleksa Gordic's pytorch-GAT repo:
+#     https://github.com/gordicaleksa/pytorch-GAT/blob/39c8f0ee634477033e8b1a6e9a6da3c7ed71bbd1/models/definitions/GAT.py#L340
+def explicit_broadcast(this, other):
+    # Append singleton dimensions until this.dim() == other.dim()
+    for _ in range(this.dim(), other.dim()):
+        this = this.unsqueeze(-1)
 
-        return h_i
+    # Explicitly expand so that shapes are the same
+    expanded = this.expand_as(other)
+    assert expanded.size() == other.size(), f"Error: Broadcasting didn't work. Have size {expanded.size()}, expected {other.size()}"
+
+    return expanded
 
 
 if __name__ == "__main__":
