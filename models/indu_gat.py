@@ -211,10 +211,9 @@ class induGAT(pl.LightningModule):
     def test_dataloader(self):
         return DataLoader(self.test_ds)
 
-if __name__ == "__main__":
 
-    # READ IN FROM OUR INPUT LINE.
-    # KI.
+
+def run_ppi_example():
 
     # Constants used during the execution
     PPI_NODE_FEATURES = 50
@@ -237,8 +236,16 @@ if __name__ == "__main__":
         # Do we need to add bias.
     }
 
-
     gat = induGAT(config = ppi_config)
     trainer = pl.Trainer(max_epochs=10)#, limit_train_batches=0.1)
     trainer.fit(gat)
     trainer.test()
+
+
+
+if __name__ == "__main__":
+
+    run_ppi_example()
+    
+
+    
