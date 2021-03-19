@@ -52,12 +52,11 @@ if __name__ == "__main__":
     parser.add_argument('--save', default=False)
 
     args = parser.parse_args()
-    
     dataset = args.dataset
-    max_epochs = args.max_epochs
-    learning_rate = args.lr
-    l2_reg = args.l2
-    max_epochs=70
+    max_epochs = int(args.max_epochs)
+    learning_rate = float(args.lr)
+    l2_reg = float(args.l2)
+    
     out_heads = 1
     
     if dataset == 'Cora':
