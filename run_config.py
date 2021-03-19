@@ -34,5 +34,39 @@ data_config = {
         "train_batch_size": 1,
         "num_epochs": 1000
         # Do we need to add bias.
+    },
+    "Citeseer": {
+        "test_type": "Transductive",
+        "layer_type": "PyTorch_Geometric",
+        "num_layers": 2, 
+        "num_input_node_features": 3703,
+        "num_heads_per_layer": [8, 1],  
+        "heads_concat_per_layer": [True, False],
+        "head_output_features_per_layer": [3703, 8, 6],  
+        "num_classes": 6,
+        "add_skip_connection": False, 
+        "dropout": 0.6,
+        "l2_reg": 0.0005, 
+        "learning_rate": 0.005,
+        "train_batch_size": 1,
+        "num_epochs": 1000
+        # Do we need to add bias.
+    },
+    "Pubmed": {
+        "test_type": "Transductive",
+        "layer_type": "PyTorch_Geometric",
+        "num_layers": 2, 
+        "num_input_node_features": 500,
+        "num_heads_per_layer": [8, 8],  
+        "heads_concat_per_layer": [True, False],
+        "head_output_features_per_layer": [500, 8, 3],  
+        "num_classes": 3,
+        "add_skip_connection": False, 
+        "dropout": 0.6,
+        "l2_reg": 0.001, 
+        "learning_rate": 0.01,
+        "train_batch_size": 1,
+        "num_epochs": 1000
+        # Do we need to add bias.
     }
 }
