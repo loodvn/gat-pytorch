@@ -8,15 +8,13 @@ from torch_geometric.nn import GATConv
 import pytorch_lightning as pl
 from models.gat_layer import GATLayer
 from models.trans_gat import transGAT
-# from models.indu_gat import induGAT
-
+from models.indu_gat import induGAT
 
 
 def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads, save):
     if dataset == 'PPI':
-        # gat = induGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, lr=learning_rate, l2_reg=l2_reg)
-        # print(gat)
-        pass
+        gat = induGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, lr=learning_rate, l2_reg=l2_reg)
+        print(gat)
     else:
         gat = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, out_heads=out_heads, lr=learning_rate, l2_reg=l2_reg)
 
