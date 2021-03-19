@@ -5,9 +5,7 @@ import argparse
 from torch_geometric.datasets import PPI
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
-from torch.nn import Linear
-from torch.nn import Sigmoid
-from torch.nn import BCEWithLogitsLoss
+from torch.nn import Sigmoid, Linear, BCEWithLogitsLoss
 import pytorch_lightning as pl
 from models.gat_layer import GATLayer
 from sklearn.metrics import f1_score
@@ -24,14 +22,14 @@ from sklearn.metrics import f1_score
 
 
 class induGAT(pl.LightningModule):
-    def __init__(self, dataset, node_features, num_classes, in_heads=4, mid_heads=4, out_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
+    def __init__(self, dataset, node_features, num_classes, first_layer_heads=4, second_layer_heads=4, third_layer_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
         super(induGAT, self).__init__()
         self.dataset = dataset
 
         self.head_features = head_features
-        self.in_heads = in_heads
-        self.mid_heads = mid_heads
-        self.out_heads = out_heads
+        self.first_layer_heads = first_layer_heads
+        self.second_layer_heads = second_layer_heads
+        self.third_layer_heads = third_layer_heads
 
         self.lr = lr
         self.l2_reg = l2_reg
@@ -41,9 +39,16 @@ class induGAT(pl.LightningModule):
         self.node_features = node_features
         self.num_classes = num_classes
 
-        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, add_self_loops=True, heads=self.in_heads)#, add_self_loops=True, dropout=self.dropout) 
-        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.head_features, add_self_loops=True, heads=self.mid_heads) #dropout=self.dropout) 
-        self.gat3 = GATConv(in_channels=self.head_features * self.mid_heads, out_channels=self.num_classes, add_self_loops=True, heads=out_heads, concat=False)#, dropout=self.dropout)
+        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.first_layer_heads, add_self_loops=True) 
+        self.skip_conn_1 = Linear(in_features=self.node_features, out_features=self.head_features * self.first_layer_heads, bias=False)
+
+        self.gat2 = GATConv(in_channels=self.head_features * self.first_layer_heads, out_channels=self.head_features, heads=self.second_layer_heads, add_self_loops = True)
+        self.skip_conn_2 = Linear(in_features=self.head_features * self.first_layer_heads, out_features=self.head_features * self.second_layer_heads, bias=False)
+
+        self.gat3 = GATConv(in_channels=self.head_features * self.second_layer_heads, out_channels=self.num_classes, add_self_loops=True, heads=third_layer_heads, concat=False)
+        self.skip_conn_3 = Linear(in_features=self.head_features * self.second_layer_heads, out_features=self.num_classes * self.third_layer_heads, bias=False)
+        # Is this deffo correct should we instead be doing (x, 1024) -> (x, 121) rather than (x, 1024) -> (x, 6, 121) thenmean to -> (x, 121)
+        # OW / LVN.
 
         self.skip_connection = Linear(self.head_features * self.in_heads, self.head_features * self.mid_heads, bias=False)
         
@@ -54,22 +59,60 @@ class induGAT(pl.LightningModule):
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
 
-        x = self.gat1(x, edge_index)
+        x = self.skip_connection(input_node_features=x, output_node_features=self.gat1(x, edge_index), layer=1)
         x = F.elu(x)
-        x = self.gat2(x, edge_index)
+        x = self.skip_connection(input_node_features=x, output_node_features=self.gat2(x, edge_index), layer=2)
         x = F.elu(x)
-        skip_values = self.skip_connection(x)
-        x = self.gat3(x + skip_values, edge_index)
-        # print(x)
-        # s = Sigmoid()
-        # x = s(x)
-        # print(x)
-
+        x = self.skip_connection(input_node_features=x, output_node_features=self.gat3(x, edge_index), layer=3)
         return x
+    
+    def skip_connection(self, input_node_features, output_node_features, layer):
+        # print("Layer: {}".format(layer))
+        # print("Input shape:")
+        # print(input_node_features.shape)
+        # print("Output shape: ")
+        # print(output_node_features.shape)
+
+        if input_node_features.shape[-1] == output_node_features.shape[-1]:
+            # This is fine we can just add these and return.
+            output_node_features += input_node_features
+        else:
+            # Need to project as FIN != FOUT.
+            if layer == 1:
+                # print("Post skip conn for layer 1 shape: ")
+                # print(self.skip_conn_1(input_node_features).shape)
+                # print("After reshaping view")
+                # print(self.skip_conn_1(input_node_features).view(-1, self.first_layer_heads, self.head_features).shape)
+                output_node_features += self.skip_conn_1(input_node_features)
+            elif layer == 2:
+                # print("Post skip conn for layer 2 shape: ")
+                # print(self.skip_conn_2(input_node_features).shape)
+                # print("After reshaping view")
+                # print(self.skip_conn_2(input_node_features).view(-1, self.second_layer_heads, self.head_features).shape)
+                output_node_features += self.skip_conn_2(input_node_features)
+            else:
+                # print("Post skip conn for layer 3 shape: ")
+                # print(self.skip_conn_3(input_node_features).shape)
+                # print("After reshaping view")
+                # Again - check.
+                # MEAN BEFORE SUMMING - OW / LVD
+                skip_output = self.skip_conn_3(input_node_features).view(-1, self.third_layer_heads, self.num_classes)
+                # print(skip_output.shape)
+                # print("Skip output after mean")
+                # print(skip_output.mean(dim=1).shape)
+                output_node_features += skip_output.mean(dim=1)
+        
+        # if layer != 3:
+        #     output_node_features = output_node_features.view(-1, self.second_layer_heads * self.head_features)
+        # else:
+        #     output_node_features = output_node_features
+
+        return output_node_features
+
 
     
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)#, weight_decay=self.l2_reg)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
     def training_step(self, batch, batch_idx):
@@ -79,7 +122,7 @@ class induGAT(pl.LightningModule):
         loss = loss_fn(out, batch.y)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
-        f1 = f1_score(y_pred=out > 0, y_true=batch.y, average='micro')
+        f1 = f1_score(y_pred=out.detach().cpu().numpy() > 0, y_true=batch.y.detach().cpu().numpy(), average='micro')
         self.log('train_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
@@ -91,7 +134,7 @@ class induGAT(pl.LightningModule):
         loss = loss_fn(out, batch.y)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
-        f1 = f1_score(y_pred=out > 0, y_true=batch.y, average="micro")
+        f1 = f1_score(y_pred=out.detach().cpu().numpy() > 0, y_true=batch.y.detach().cpu().numpy(), average="micro")
         self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
@@ -101,8 +144,8 @@ class induGAT(pl.LightningModule):
         out = self(batch)
         pred = (out > 0)
 
-        f1 = f1_score(y_pred=pred, y_true=batch.y, average="micro")
-        self.log('test_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        f1 = f1_score(y_pred=pred.detach().cpu().numpy(), y_true=batch.y.detach().cpu().numpy(), average="micro")
+        self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         print(f1)
         # TODO can add accuracy/precision/recall although not sure how that aggregates in multilabel setting
 
