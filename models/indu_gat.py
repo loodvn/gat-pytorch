@@ -7,7 +7,7 @@ from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
 from torch.nn import Sigmoid, Linear, BCEWithLogitsLoss, ModuleList
 import pytorch_lightning as pl
-from gat_layer import GATLayer
+from models.gat_layer import GATLayer
 from sklearn.metrics import f1_score
 
 # TODO improve logging, e.g. tensorboard
@@ -15,7 +15,7 @@ from sklearn.metrics import f1_score
 # TODO loading correctly
 # TODO skip connections in middle GATConv layer
 
-pl.seed_everything(42)
+# pl.seed_everything(42)
 
 # OW test
 # Addition 
@@ -24,7 +24,7 @@ class induGAT(pl.LightningModule):
     # def __init__(self, dataset, node_features, num_classes, first_layer_heads=4, second_layer_heads=4, third_layer_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
     def __init__(self, config):    
         """[summary]
-
+        # UPDATE THIS!!
         Args:
             config (dict): 
                 - layer_type: str
@@ -58,8 +58,8 @@ class induGAT(pl.LightningModule):
         self.dropout = config.get('dropout')
         self.input_node_features = config.get('num_input_node_features')
         self.num_classes = config.get('num_classes')
-        self.train_batch_size = config.get('train_batch_size')
-        self.num_epochs = config.get('num_epochs')
+        self.train_batch_size = int(config.get('train_batch_size'))
+        self.num_epochs = int(config.get('num_epochs'))
         # In order to make the number of heads consistent as this is used in the in_channels for our GAT layer we have prepended the list given by the user
         # with a 1 to signal that in the first layer, the input is just 1 * num_input_node_features
         self.num_heads_per_layer = [1] + config.get('num_heads_per_layer')
@@ -109,15 +109,14 @@ class induGAT(pl.LightningModule):
         # OW / LVN.
         
        
-
-
     def forward(self, data):
 
         x, edge_index = data.x, data.edge_index
         self.layer_step = 2 if self.add_skip_connection else 1
 
         for i in range(0, len(self.gat_model), self.layer_step):
-
+            if i != 0:
+                x = F.elu(x)
             # If skip connection the perform the GAT layer and add this to the skip connection values.
             if self.add_skip_connection:
                 x = self.perform_skip_connection(
@@ -129,7 +128,6 @@ class induGAT(pl.LightningModule):
                 x = self.gat_model[i](x, edge_index)
             
             # In either can then perform a elu activation.
-            x = F.elu(x)
         return x
     
     def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat):
@@ -161,8 +159,8 @@ class induGAT(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         out = self(batch)
-        # print("sigmoid error: ", (out[0]-batch.y[0]))
-        loss_fn = BCEWithLogitsLoss(reduction='mean') #F.binary_cross_entropy(out, batch.y)
+    
+        loss_fn = BCEWithLogitsLoss(reduction='mean') 
         loss = loss_fn(out, batch.y)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
@@ -173,8 +171,7 @@ class induGAT(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         out = self(batch)
-        # loss = F.binary_cross_entropy(out, batch.y)
-        loss_fn = BCEWithLogitsLoss(reduction='mean') #F.binary_cross_entropy(out, batch.y)
+        loss_fn = BCEWithLogitsLoss(reduction='mean') 
         loss = loss_fn(out, batch.y)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
@@ -191,17 +188,20 @@ class induGAT(pl.LightningModule):
         f1 = f1_score(y_pred=pred.detach().cpu().numpy(), y_true=batch.y.detach().cpu().numpy(), average="micro")
         self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         print(f1)
-        # TODO can add accuracy/precision/recall although not sure how that aggregates in multilabel setting
-        # OW - you can't they don't really represent anything.
 
         return f1
 
+    # This should dynamically choose dataset class - not use PPI by default
     def prepare_data(self):
         self.train_ds = PPI(root='/tmp/PPI', split='train')
         self.val_ds = PPI(root='/tmp/PPI', split='val')
         self.test_ds = PPI(root='/tmp/PPI', split='test')
 
-    # Only for PPI dataset at this stage - move into train.py
+        # self.input_node_features = self.train_ds.num_node_features
+        # self.num_classes = self.train_ds.num_classes
+        # self.head_output_features_per_layer[0] = self.input_node_features
+        # self.head_output_features_per_layer[-1] = self.num_classes
+
     def train_dataloader(self):
         return DataLoader(self.train_ds, batch_size=self.train_batch_size, shuffle=True)        
     
@@ -210,42 +210,3 @@ class induGAT(pl.LightningModule):
 
     def test_dataloader(self):
         return DataLoader(self.test_ds)
-
-
-
-def run_ppi_example():
-
-    # Constants used during the execution
-    PPI_NODE_FEATURES = 50
-    PPI_NUM_CLASSES = 121
-
-    ppi_config = {
-        "layer_type": "PyTorch_Geometric",
-        "num_input_node_features": PPI_NODE_FEATURES,
-        "num_layers": 3, 
-        "num_heads_per_layer": [4, 4, 6],  
-        "heads_concat_per_layer": [True, True, False],
-        "head_output_features_per_layer": [PPI_NODE_FEATURES, 64, 64, PPI_NUM_CLASSES],  
-        "num_classes": PPI_NUM_CLASSES,
-        "add_skip_connection": True, 
-        "dropout": 0.0,
-        "l2_reg": 0.0, 
-        "learning_rate": 0.005,
-        "train_batch_size": 2,
-        "num_epochs": 100
-        # Do we need to add bias.
-    }
-
-    gat = induGAT(config = ppi_config)
-    trainer = pl.Trainer(max_epochs=10)#, limit_train_batches=0.1)
-    trainer.fit(gat)
-    trainer.test()
-
-
-
-if __name__ == "__main__":
-
-    run_ppi_example()
-    
-
-    

@@ -9,48 +9,108 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from models.gat_layer import GATLayer
 
-# TODO improve logging, e.g. tensorboard
-# TODO validation
-# TODO loading correctly
 # pl.seed_everything(42)
 
 class transGAT(pl.LightningModule):
-    def __init__(self, dataset, node_features, num_classes, in_heads=8, out_heads=1, head_features=8, l2_reg=0.0005, lr = 0.005, dropout=0.6):
+    def __init__(self, config):
+        """[summary]
+        # UPDATE THIS!!!!!!
+        Args:
+            config (dict): 
+                - layer_type: str
+                - num_input_node_features: int,
+                - num_layers: int
+                - num_heads_per_layer: List[int]
+                - heads_concat_per_layer: List[bool]
+                - head_output_features_per_layer: List[int]
+                - add_skip_connection: bool 
+                - dropout: float
+                - l2_reg: float
+                - learning_rate: float
+                - train_batch_size: int
+                - num_epochs: int
+        """
         super(transGAT, self).__init__()
-        self.dataset = dataset
 
-        self.head_features = head_features
-        self.in_heads = in_heads
-        self.out_heads = out_heads
+        # Decide whether we are using our layer or the default implimentation for PyTorch Geometric of GAT.
+        # See: (https://pytorch-geometric.readthedocs.io/en/latest/modules/nn.html#torch_geometric.nn.conv.GATConv)
+        self.layer_type = config.get('layer_type')
+        self.add_skip_connection = config.get('add_skip_connection')
 
-        self.lr = lr
-        self.l2_reg = l2_reg
-        self.dropout = dropout
+        self.dataset = config.get('dataset')
+        self.num_layers = config.get('num_layers')
+        self.lr = config.get('learning_rate')
+        self.l2_reg = config.get('l2_reg')
+        self.dropout = config.get('dropout')
+        self.input_node_features = config.get('num_input_node_features')
+        self.num_classes = config.get('num_classes')
+        self.train_batch_size = int(config.get('train_batch_size'))
+        self.num_epochs = int(config.get('num_epochs'))
+        # In order to make the number of heads consistent as this is used in the in_channels for our GAT layer we have prepended the list given by the user
+        # with a 1 to signal that in the first layer, the input is just 1 * num_input_node_features
+        self.num_heads_per_layer = [1] + config.get('num_heads_per_layer')
+        self.head_output_features_per_layer = config.get('head_output_features_per_layer')
+        self.heads_concat_per_layer = config.get('heads_concat_per_layer')
+        
+        # Collect the layers into a list and then place together into a Sequential model.
+        layers = []
+        for i in range(0, self.num_layers):
+            # Depending on the implimentation layer type depends what we do.
+            if self.layer_type == "Ours":
+                pass
+            else:
+                gat_layer = GATConv(
+                    in_channels=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
+                    out_channels=self.head_output_features_per_layer[i+1], 
+                    heads=self.num_heads_per_layer[i+1], 
+                    add_self_loops=True,
+                    dropout=self.dropout,
+                    concat=self.heads_concat_per_layer[i]
+                ) 
+            layers.append(gat_layer)
 
-        self.node_features = node_features
-        self.num_classes = num_classes
+            # In either case if we need to add skip connections we can do this outside of the layer.
+            if self.add_skip_connection:
+                # If we concat then the output shape will be the number of heads. Otherwise we take a mean over each head and therefore can omit this.
+                if self.heads_concat_per_layer[i]:
+                    skip_layer = Linear(
+                        in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
+                        out_features=self.head_output_features_per_layer[i+1] * self.num_heads_per_layer[i+1],
+                        bias=False
+                    )
+                else:
+                    skip_layer = Linear(
+                        in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
+                        out_features=self.num_heads_per_layer[i+1] * self.head_output_features_per_layer[i+1],
+                        bias=False
+                    )
+                layers.append(skip_layer)
+        
+        # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
+        self.gat_model = nn.ModuleList(layers)
+        print(self.gat_model)
 
-        # self.patience = 100
-        # self.lossMin = 1e10
-
-        self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, add_self_loops=True, dropout=self.dropout)#add_self_loops=True, # add self loops? GATLayer(in_channels=self.node_features, out_channels=self.head_features, number_of_heads=self.in_heads, dropout=self.dropout, alpha = 0.2)#
-        self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, add_self_loops=True, concat=False, dropout=self.dropout) #concat=False, GATLayer(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, number_of_heads=self.out_heads, concat=False, dropout=self.dropout, alpha = 0.2)#
-
-
-    def reset_parameters(self):
-        self.gat1.reset_parameters()
-        self.gat2.reset_parameters()
+    # def reset_parameters(self):
+    #     self.gat1.reset_parameters()
+    #     self.gat2.reset_parameters()
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
+        self.layer_step = 2 if self.add_skip_connection else 1
 
-        # dropout to avoid overfitting as dataset is small
-        # print(self.training)
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.gat1(x, edge_index)
-        x = F.elu(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.gat2(x, edge_index)
+        for i in range(0, len(self.gat_model), self.layer_step):
+            if i != 0:
+                x = F.elu(x)
+            # If skip connection the perform the GAT layer and add this to the skip connection values.
+            if self.add_skip_connection:
+                x = self.perform_skip_connection(
+                    skip_connection_layer=self.gat_model[i+1], 
+                    input_node_features=x, 
+                    gat_output_node_features=self.gat_model[i](x, edge_index), 
+                    head_concat=self.gat_model[i].concat)
+            else:
+                x = F.dropout(x, p=self.dropout, training=self.training)
+                x = self.gat_model[i](x, edge_index)
 
         return F.log_softmax(x, dim=1) 
 
@@ -62,9 +122,6 @@ class transGAT(pl.LightningModule):
     def training_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
         out = self(batch)
         loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
-        # loss_fn = nn.CrossEntropyLoss()
-        # loss = loss_fn(out[batch.train_mask], batch.y[batch.train_mask])
-        loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
         print(loss)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
@@ -75,48 +132,25 @@ class transGAT(pl.LightningModule):
         pred = out.argmax(dim=1)  # Use the class with highest probability.
         correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
         val_acc = (correct / batch.val_mask.sum().item())
-        # loss_fn = nn.CrossEntropyLoss()
         val_loss = F.nll_loss(out[batch.val_mask], batch.y[batch.val_mask])
-        # val_loss = loss_fn(out[batch.val_mask], batch.y[batch.val_mask])
-        # print(loss)
-        #early stopping
-    #     if (val_loss<=lossMin):
-    #         lossMin = val_loss
-    #         count = 0
-    #         model_best.load_state_dict(model.state_dict())
-    #         val_acc_best = (correct / data.val_mask.sum().item())
-    #     else:
-    #         count+=1
-    #         if(count>patience):
-    #             print("patience lost", end=' ')
-    #             break
-                
-    # val_acc += val_acc_best
+        
         self.log('val_loss', val_loss, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_acc', val_acc, on_epoch=True, prog_bar=True, logger=True)
         return val_loss
 
     def test_step(self, batch, batch_idx):
-        # Copied from https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html#learning-methods-on-graphs
         out = self(batch)
-        # out1 = F.log_softmax(out, dim=1) 
         pred = out.argmax(dim=1)  # Use the class with highest probability.
 
-        
         test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
         test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
 
-        # correct = float (pred[batch.test_mask].eq(batch.y[batch.test_mask]).sum().item())
-        # test_acc = (correct / batch.test_mask.sum().item())
-        # print("correct ", correct)
         self.log('test_acc', test_acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        print("This is the test accuracy")
-        print(test_acc)
         return test_acc
 
     
-
-    # How to apply mask at this stage so we arent loading entire dataset twice? - or do we accc want that
+    # Apply mask at this stage to save reloading?
+    # Should not use planetoid as default
     def train_dataloader(self):
         dataset = Planetoid(root='/tmp/' + self.dataset, name=self.dataset)
         # print(data.train_mask.sum().item())
@@ -126,9 +160,6 @@ class transGAT(pl.LightningModule):
         
     def val_dataloader(self):
         dataset = Planetoid(root='/tmp/' + self.dataset, name=self.dataset)
-        # print(data.train_mask.sum().item())
-        # print(data.val_mask.sum().item())
-        # print(data.test_mask.sum().item())
         return DataLoader(dataset)
 
     def test_dataloader(self):
