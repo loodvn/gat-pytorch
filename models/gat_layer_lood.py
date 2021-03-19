@@ -1,13 +1,12 @@
-from typing import Tuple
-
 import torch
 from torch import nn
+
 from .utils import add_remaining_self_loops
 
 
 class GATLayerLood(nn.Module):
     """Minimal GAT Layer, playing around"""
-    def __init__(self, in_features, out_features, num_heads, concat, dropout=0, add_self_loops=True, bias=True):
+    def __init__(self, in_features, out_features, num_heads, concat, dropout=0, add_self_loops=False, bias=False):
         """
         TODO docstring
         :param in_features:
@@ -84,8 +83,6 @@ class GATLayerLood(nn.Module):
         attention_weights = self.a(attention_pairs)  # shape: (E, NH*(2*F_OUT)) -> (E, NH)  # TODO the heads are mixing here (input fully connected to NH output) which is wrong
         attention_weights = nn.LeakyReLU()(attention_weights)
         assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
-        print("tmp attention weights norm, mean, min, max, std", attention_weights.norm(), attention_weights.mean(), attention_weights.min(), attention_weights.max(), attention_weights.std())
-
         # Setting to constant attention, see what happens
         attention_weights = attention_weights.detach()
         attention_weights = torch.zeros(attention_weights.size())
@@ -102,19 +99,16 @@ class GATLayerLood(nn.Module):
 
         # Broadcast back up to (E,NH) so that we can calculate softmax by dividing each edge by denominator
         attention_softmax_denom = torch.index_select(attention_softmax_denom, dim=0, index=target_edges)
-        print("softmax denom after broadcasting up to E edges, ordered by edge", attention_softmax_denom)
 
         normalised_attention_coeffs = attention_exp / attention_softmax_denom  # shape: (E, NH) TODO add epsilon for stability?
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
-        print("tmp normalized coeffs per edge: ", normalised_attention_coeffs)
-        print("tmp attention exp per node: ", attention_exp)
 
         # Dropout on normalized attention coefficients
         if self.dropout > 0:
             normalised_attention_coeffs = nn.Dropout(p=self.dropout)(normalised_attention_coeffs)
 
         # Multiply all nodes in neighbourhood (with incoming edges) by attention coefficients: Inside parenthesis of Equation (4)
-        weighted_neighbourhood_features = normalised_attention_coeffs.view(E, self.num_heads, 1) * target_transformed   # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
+        weighted_neighbourhood_features = normalised_attention_coeffs.view(E, self.num_heads, 1) * source_transformed # target_transformed   # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
         assert weighted_neighbourhood_features.size() == (E, self.num_heads, self.out_features)
 
         # Get the attention-weighted sum of neighbours: Equation (4). Aggregate again according to target edge.

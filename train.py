@@ -56,7 +56,7 @@ if __name__ == "__main__":
     max_epochs = args.max_epochs
     learning_rate = args.lr
     l2_reg = args.l2
-    max_epochs=1
+    max_epochs=10
     out_heads = 1
     
     if dataset == 'Cora':

@@ -79,8 +79,8 @@ class transGAT(pl.LightningModule):
         return loss
 
     def on_train_end(self):
-        print("attention coeffs: ", self.gat1.normalised_attention_coeffs)
-        print("mean, std, max: ", self.gat1.normalised_attention_coeffs.mean(), self.gat1.normalised_attention_coeffs.std(), self.gat1.normalised_attention_coeffs.max())
+        print("tmp attention coeffs: ", self.gat1.normalised_attention_coeffs)
+        print("tmp attention coeffs mean, std, max: ", self.gat1.normalised_attention_coeffs.mean(), self.gat1.normalised_attention_coeffs.std(), self.gat1.normalised_attention_coeffs.max())
 
     def validation_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
         out = self(batch)
