@@ -130,7 +130,7 @@ class GATLayer(nn.Module):
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
 
         if return_attention_coeffs:
-            return output_features, (edge_index, self.normalised_attention_coeffs)
+            return (output_features, edge_index, self.normalised_attention_coeffs)
 
         return output_features
     

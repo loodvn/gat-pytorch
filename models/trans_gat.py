@@ -67,6 +67,18 @@ class transGAT(pl.LightningModule):
         # Returning raw logits
         return x
 
+    def forward_and_return_attention(self, data, return_attention_coeffs=True):
+        x, edge_index = data.x, data.edge_index
+        attention_weight_list = []
+        # Dropout is applied within the layer
+        x, edge_index, attention_weights_layer1 = self.gat1(x, edge_index, return_attention_coeffs)
+        attention_weight_list.append(attention_weights_layer1)
+        x = nn.ELU()(x)
+        x, edge_index, attention_weights_layer2 = self.gat2(x, edge_index, return_attention_coeffs)
+        attention_weight_list.append(attention_weights_layer2)
+        # Returning raw logits
+        return x, edge_index, attention_weight_list
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
         return optimizer
@@ -96,7 +108,8 @@ class transGAT(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         # Copied from https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html#learning-methods-on-graphs
-        out = self(batch)
+        out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_coeffs=True)
+        # OW: TODO - Use these attention weights.
         pred = out.argmax(dim=1)  # Use the class with highest probability.
         
         test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
