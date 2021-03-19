@@ -17,7 +17,7 @@ from sklearn.metrics import f1_score
 # TODO loading correctly
 # TODO skip connections in middle GATConv layer
 
-# pl.seed_everything(42)
+pl.seed_everything(42)
 
 # OW test
 

@@ -32,25 +32,14 @@ class transGAT(pl.LightningModule):
 
         # self.patience = 100
         # self.lossMin = 1e10
-        # print(self.lossMin)
-        # print(self.dataset)
-        # print(self.head_features)
-        # print(self.in_heads)
-        # print(self.out_heads)
-        # print(self.lr)
-        # print(self.l2_reg)
-        # print(self.dropout)
-        # print(self.node_features)
-        # print(self.num_classes)
 
         self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, add_self_loops=True, dropout=self.dropout)#add_self_loops=True, # add self loops? GATLayer(in_channels=self.node_features, out_channels=self.head_features, number_of_heads=self.in_heads, dropout=self.dropout, alpha = 0.2)#
         self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, add_self_loops=True, concat=False, dropout=self.dropout) #concat=False, GATLayer(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, number_of_heads=self.out_heads, concat=False, dropout=self.dropout, alpha = 0.2)#
-        # print(self.gat1)
-        # print(self.gat2)
 
-    # def reset_parameters(self):
-    #     self.gat1.reset_parameters()
-    #     self.gat2.reset_parameters()
+
+    def reset_parameters(self):
+        self.gat1.reset_parameters()
+        self.gat2.reset_parameters()
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
@@ -83,8 +72,9 @@ class transGAT(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
         out = self(batch)
-        # pred = out.argmax(dim=1)  # Use the class with highest probability.
-        # correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
+        pred = out.argmax(dim=1)  # Use the class with highest probability.
+        correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
+        val_acc = (correct / batch.val_mask.sum().item())
         # loss_fn = nn.CrossEntropyLoss()
         val_loss = F.nll_loss(out[batch.val_mask], batch.y[batch.val_mask])
         # val_loss = loss_fn(out[batch.val_mask], batch.y[batch.val_mask])
@@ -102,7 +92,8 @@ class transGAT(pl.LightningModule):
     #             break
                 
     # val_acc += val_acc_best
-        self.log('val_loss', val_loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_loss', val_loss, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_acc', val_acc, on_epoch=True, prog_bar=True, logger=True)
         return val_loss
 
     def test_step(self, batch, batch_idx):

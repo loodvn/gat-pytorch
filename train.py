@@ -6,6 +6,7 @@ from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from models.gat_layer import GATLayer
 from models.trans_gat import transGAT
 from models.indu_gat import induGAT
@@ -14,24 +15,47 @@ from models.indu_gat import induGAT
 def train(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads, save):
     if dataset == 'PPI':
         gat = induGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, lr=learning_rate, l2_reg=l2_reg)
-        print(gat)
     else:
         gat = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes, out_heads=out_heads, lr=learning_rate, l2_reg=l2_reg)
 
-    trainer = pl.Trainer(max_epochs=max_epochs)
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val_loss',
+        dirpath='checkpoints',
+        filename=dataset + '-best',#{epoch:02d}-{val_loss:.2f}')
+        mode='min',
+    )
+
+    early_stop_callback = EarlyStopping(
+        monitor='val_loss',
+        patience=50,
+        verbose=True,
+        mode='min'
+    )
+
+    trainer = pl.Trainer(max_epochs=max_epochs, callbacks=[checkpoint_callback, early_stop_callback], show_progress_bar=True)
     
     trainer.fit(gat)
-
+    trainer.test(gat)
+    checkpoint_callback.best_model_path
+    checkpoint_callback.best_model_score
     trainer.test()
 
-    if save:
-        trainer.save_checkpoint(dataset + ".ckpt")
-        print("Model has been saved")
+    if dataset == 'PPI':
+        loaded_model = induGAT.load_from_checkpoint(checkpoint_path = 'checkpoints/'+ dataset + "-best.ckpt", dataset=dataset, node_features=node_features, num_classes=num_classes)
+    else:
+        loaded_model = transGAT.load_from_checkpoint(checkpoint_path = 'checkpoints/'+ dataset + "-best.ckpt", dataset=dataset, node_features=node_features, num_classes=num_classes)
+    
+
+    trainer.test(loaded_model)
+
+    # if save:
+    #     trainer.save_checkpoint(dataset + ".ckpt")
+    #     print("Model has been saved")
 
 # add if no checkpoint file then train
 def load(dataset, node_features, num_classes, max_epochs, learning_rate, l2_reg, out_heads):
     print('I am loading :)')
-    loaded_model = transGAT.load_from_checkpoint(checkpoint_path = dataset + ".ckpt", dataset=dataset, node_features=node_features, num_classes=num_classes)
+    loaded_model = transGAT.load_from_checkpoint(checkpoint_path ='checkpoints/'+dataset + "-best.ckpt", dataset=dataset, node_features=node_features, num_classes=num_classes)
     # Will need to change this as loaded dataset could be an induGAT
     # loaded_model = transGAT(dataset=dataset, node_features=node_features, num_classes=num_classes)
     # trainer = pl.Trainer(resume_from_checkpoint=dataset+".ckpt")
