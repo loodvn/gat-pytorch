@@ -10,6 +10,7 @@ def is_number(s):
     except ValueError:
         return False
 
+
 def checkpoint(filename, monitor='val_loss', dirpath='checkpoints', mode='min',):
     checkpoint_callback = ModelCheckpoint(
         monitor=monitor,
@@ -18,6 +19,7 @@ def checkpoint(filename, monitor='val_loss', dirpath='checkpoints', mode='min',)
         mode=mode,
     )
     return checkpoint_callback
+
 
 def early_stop(monitor='val_loss', patience=100, verbose=True, mode='min'):
     early_stop_callback = EarlyStopping(
@@ -28,9 +30,10 @@ def early_stop(monitor='val_loss', patience=100, verbose=True, mode='min'):
     )
     return early_stop_callback
 
+
 def load(config):
     if config['test_type'] == 'Inductive':
         loaded_model = induGAT.load_from_checkpoint(checkpoint_path='checkpoints/'+config['dataset'] + "-best.ckpt", config=config)
     else:
-        loaded_model = transGAT.load_from_checkpoint(checkpoint_path ='checkpoints/'+config['dataset'] + "-best.ckpt", config=config)
+        loaded_model = transGAT.load_from_checkpoint(checkpoint_path='checkpoints/'+config['dataset'] + "-best.ckpt", config=config)
     return loaded_model

@@ -1,12 +1,13 @@
-import argparse
-import sys
+from typing import List
 
 import pytorch_lightning as pl
 import torch
+import torch.nn.functional as F
 from torch import nn
-from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
+from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GATConv
+
 from .gat_layer import GATLayer
 import torch.nn.functional as F
 from models.GATModel import GATModel
@@ -23,7 +24,8 @@ class transGAT(GATModel):
     def training_step(self, batch, batch_idx): 
         out = self(batch)
         loss = self.criterion(out[batch.train_mask], batch.y[batch.train_mask])
-        self.log('train_loss', loss, on_epoch=True, prog_bar=True, logger=True)  # There's only one step in epoch so we log on epoch
+        self.log('train_loss', loss, on_epoch=True, prog_bar=True,
+                 logger=True)  # There's only one step in epoch so we log on epoch
         # TODO log histogram of attention weights?
         return loss
 
@@ -32,7 +34,7 @@ class transGAT(GATModel):
         val_loss = self.criterion(out[batch.val_mask], batch.y[batch.val_mask])
 
         pred = out.argmax(dim=1)  # Use the class with highest probability.
-        correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
+        correct = float(pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
         val_acc = (correct / batch.val_mask.sum().item())
         self.log('val_loss', val_loss, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_acc', val_acc, on_epoch=True, prog_bar=True, logger=True)
@@ -44,7 +46,7 @@ class transGAT(GATModel):
         # self.attention_weights_list = attention_list
         # OW: TODO - Use these attention weights.
         pred = out.argmax(dim=1)  # Use the class with highest probability.
-        
+
         test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
         test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
 
