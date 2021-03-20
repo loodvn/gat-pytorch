@@ -8,6 +8,7 @@ from torch_geometric.data import DataLoader
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GATConv
 
+from run_config import LayerType
 from .gat_layer import GATLayer
 import torch.nn.functional as F
 from models.GATModel import GATModel

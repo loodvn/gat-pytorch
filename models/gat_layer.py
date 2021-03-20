@@ -5,7 +5,12 @@ from .utils import add_remaining_self_loops
 
 
 class GATLayer(nn.Module):
-    """Minimal GAT Layer, playing around"""
+    """
+    Inspired by both Aleksa Gordic's https://github.com/gordicaleksa/pytorch-GAT and PyTorch Geometric's GATConv layer,
+    which we use as reference to test this implementation.
+
+    This implementation follows the equations from the original GAT paper more faithfully, but will be less efficient than other optimised implementations.
+    """
     def __init__(self, in_features, out_features, num_heads, concat, dropout=0, add_self_loops=False, bias=False, const_attention=False):
         """
         TODO docstring
@@ -29,15 +34,16 @@ class GATLayer(nn.Module):
         self.bias = bias
         self.const_attention = const_attention
 
-        # TODO bias is a parameter added to output independently
         # Weight matrix from paper
         self.W = nn.Linear(in_features=self.in_features, out_features=self.num_heads*self.out_features, bias=False)
         # Attentional mechanism from paper
         # TODO trying to figure out shapes
         # self.a = nn.Parameter(torch.Tensor(1, self.num_heads, (2*self.out_features)))  # NH different matrices of size 2*F_OUT
-
         if not const_attention:
             self.a = nn.Linear(in_features=self.num_heads*(2*self.out_features), out_features=self.num_heads, bias=False)  # Attention coefficients
+
+        if self.bias:
+            self.bias_param = nn.Parameter(torch.Tensor(self.num_heads * self.out_features))
 
         self.normalised_attention_coeffs = None
         self.reset_parameters()
@@ -60,14 +66,13 @@ class GATLayer(nn.Module):
         E = edge_index.size(1)
 
         source_edges, target_edges = edge_index
-        
-        # Dropout on input features
-        if self.dropout > 0:
-            x = nn.Dropout(p=self.dropout)(x)
+
+        # Dropout (1) on input features is applied outside of the layer
         
         # Transform features
         nodes_transformed = self.W(x)  # (N, F_IN) -> (N, NH*F_OUT)
         nodes_transformed = nodes_transformed.view(N, self.num_heads, self.out_features)  # -> (N, NH, F_OUT)
+        # # Dropout (2): on transformed features
         # if self.dropout > 0:
         #     nodes_transformed = nn.Dropout(p=self.dropout)(nodes_transformed)
 
@@ -76,8 +81,8 @@ class GATLayer(nn.Module):
         target_transformed = nodes_transformed[target_edges]   # shape: (E, NH, F_OUT)
         assert target_transformed.size() == (E, self.num_heads, self.out_features), f"{target_transformed.size()} != {(E, self.num_heads, self.out_features)}"
 
-        # Equation (1)
         if not self.const_attention:
+            # Equation (1)
             attention_pairs = torch.cat([source_transformed, target_transformed], dim=-1)  # shape: (E, NH, 2*F_OUT)
             # Trying attention as a tensor
             # attention_weights = (self.a * attention_pairs).sum(dim=-1)  # Calculate dot product over last dimension (the output features) to get (E, NH)
@@ -96,6 +101,7 @@ class GATLayer(nn.Module):
         # Softmax over neighbourhoods: Equation (2)/(3)
         attention_exp = attention_weights.exp()
         # Calculate the softmax denominator for each neighbourhood (target): sum attention exponents for each neighbourhood
+        # output shape: (N, NH)
         attention_softmax_denom = self.sum_over_neighbourhood(
             values=attention_exp,
             neighbourhood_indices=target_edges,
@@ -104,19 +110,22 @@ class GATLayer(nn.Module):
 
         # Broadcast back up to (E,NH) so that we can calculate softmax by dividing each edge by denominator
         attention_softmax_denom = torch.index_select(attention_softmax_denom, dim=0, index=target_edges)
-
-        normalised_attention_coeffs = attention_exp / attention_softmax_denom  # shape: (E, NH) TODO add epsilon for stability?
+        # normalise attention coeffs using a softmax operator.
+        # Add an extra small number (epsilon) to prevent underflow / division by zero
+        normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-8)  # shape: (E, NH)
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
 
-        # Dropout on normalized attention coefficients
+        # Dropout (3): on normalized attention coefficients
         if self.dropout > 0:
             normalised_attention_coeffs = nn.Dropout(p=self.dropout)(normalised_attention_coeffs)
 
-        # Multiply all nodes in neighbourhood (with incoming edges) by attention coefficients: Inside parenthesis of Equation (4)
+        # Inside parenthesis of Equation (4):
+        # Multiply all nodes in neighbourhood (with incoming edges) by attention coefficients
         weighted_neighbourhood_features = normalised_attention_coeffs.view(E, self.num_heads, 1) * source_transformed # target_transformed   # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
         assert weighted_neighbourhood_features.size() == (E, self.num_heads, self.out_features)
 
-        # Get the attention-weighted sum of neighbours: Equation (4). Aggregate again according to target edge.
+        # Equation (4):
+        # Get the attention-weighted sum of neighbours. Aggregate again according to target edge.
         output_features = self.sum_over_neighbourhood(
             values=weighted_neighbourhood_features,
             neighbourhood_indices=target_edges,
@@ -129,6 +138,9 @@ class GATLayer(nn.Module):
         else:
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
 
+        if self.bias:
+            output_features += self.bias_param
+
         if return_attention_weights:
             return output_features, (edge_index, self.normalised_attention_coeffs)
 
@@ -139,6 +151,8 @@ class GATLayer(nn.Module):
         # nn.init.xavier_uniform_(self.a)
         if not self.const_attention:
             nn.init.xavier_uniform_(self.a.weight)
+        if self.bias:
+            nn.init.zeros_(self.bias_param)
         # Can also init bias=0 if on
 
     def sum_over_neighbourhood(self, values: torch.tensor, neighbourhood_indices: torch.tensor, aggregated_shape, return_original_size: bool = False) -> torch.tensor:
