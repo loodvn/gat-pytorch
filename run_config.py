@@ -3,7 +3,7 @@
 data_config = {
     "PPI": {
         "test_type": "Inductive",
-        "layer_type": "PyTorch_Geometric",
+        "layer_type": "Ours",
         "num_input_node_features": 50,
         "num_layers": 3, 
         "num_heads_per_layer": [4, 4, 6],  
@@ -20,7 +20,7 @@ data_config = {
     },
     "Cora": {
         "test_type": "Transductive",
-        "layer_type": "PyTorch_Geometric",
+        "layer_type": "Ours",
         "num_layers": 2, 
         "num_input_node_features": 1433,
         "num_heads_per_layer": [8, 1],  

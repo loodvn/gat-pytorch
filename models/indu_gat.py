@@ -74,7 +74,16 @@ class induGAT(pl.LightningModule):
         for i in range(0, self.num_layers):
             # Depending on the implimentation layer type depends what we do.
             if self.layer_type == "Ours":
-                pass
+                gat_layer = GATLayer(
+                    in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i], 
+                    out_features=self.head_output_features_per_layer[i+1], 
+                    num_heads=self.num_heads_per_layer[i+1], 
+                    concat=self.heads_concat_per_layer[i], 
+                    dropout=self.dropout, 
+                    bias=False, 
+                    add_self_loops=True, 
+                    const_attention=False
+                )
             else:
                 gat_layer = GATConv(
                     in_channels=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
@@ -151,6 +160,29 @@ class induGAT(pl.LightningModule):
                 gat_output_node_features += skip_output.mean(dim=1)
         
         return gat_output_node_features
+
+    def forward_and_return_attention(self, data, return_attention_coeffs=True):
+        x, edge_index = data.x, data.edge_index
+        self.layer_step = 2 if self.add_skip_connection else 1
+        attention_weights_list = []
+
+        for i in range(0, len(self.gat_model), self.layer_step):
+            if i != 0:
+                x = F.elu(x)
+            # If skip connection the perform the GAT layer and add this to the skip connection values.
+            if self.add_skip_connection:
+                gat_layer_output, edge_index, layer_attention_weight = self.gat_model[i](x, edge_index, return_attention_coeffs)
+                attention_weights_list.append(layer_attention_weight)
+                x = self.perform_skip_connection(
+                    skip_connection_layer=self.gat_model[i+1], 
+                    input_node_features=x, 
+                    gat_output_node_features=gat_layer_output, 
+                    head_concat=self.gat_model[i].concat)
+            else:
+                x = F.dropout(x, p=self.dropout, training=self.training)
+                x, edge_index, layer_attention_weight = self.gat_model[i](x, edge_index, return_attention_coeffs)
+                attention_weights_list.append(layer_attention_weight)
+        return x, edge_index, attention_weights_list
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)

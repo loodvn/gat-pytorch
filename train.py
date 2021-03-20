@@ -35,6 +35,7 @@ def run(config):
         try:
             gat = d_utils.load(config)
             trainer.test(gat)
+            # weights = gat.attention_weights
         except FileNotFoundError:
             print("There is no saved checkpoint for this dataset!")
 

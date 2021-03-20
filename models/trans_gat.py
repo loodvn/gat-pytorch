@@ -8,6 +8,8 @@ from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
 from .gat_layer import GATLayer
+import torch.nn.functional as F
+
 
 # pl.seed_everything(42)
 
@@ -62,7 +64,16 @@ class transGAT(pl.LightningModule):
             if self.layer_type == "Ours":
                 pass
                 # const_attention=False must be set here
-                #GATLayer(in_features=self.node_features, out_features=self.head_features, num_heads=self.in_heads, concat=True, dropout=self.dropout, bias=False, add_self_loops=False, const_attention=False)
+                gat_layer = GATLayer(
+                    in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i], 
+                    out_features=self.head_output_features_per_layer[i+1], 
+                    num_heads=self.num_heads_per_layer[i+1], 
+                    concat=self.heads_concat_per_layer[i], 
+                    dropout=self.dropout, 
+                    bias=False, 
+                    add_self_loops=True, 
+                    const_attention=False
+                )
             else:
                 gat_layer = GATConv(
                     in_channels=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
@@ -120,15 +131,26 @@ class transGAT(pl.LightningModule):
 
     def forward_and_return_attention(self, data, return_attention_coeffs=True):
         x, edge_index = data.x, data.edge_index
-        attention_weight_list = []
-        # Dropout is applied within the layer
-        x, edge_index, attention_weights_layer1 = self.gat1(x, edge_index, return_attention_coeffs)
-        attention_weight_list.append(attention_weights_layer1)
-        x = nn.ELU()(x)
-        x, edge_index, attention_weights_layer2 = self.gat2(x, edge_index, return_attention_coeffs)
-        attention_weight_list.append(attention_weights_layer2)
-        # Returning raw logits
-        return x, edge_index, attention_weight_list
+        self.layer_step = 2 if self.add_skip_connection else 1
+        attention_weights_list = []
+
+        for i in range(0, len(self.gat_model), self.layer_step):
+            if i != 0:
+                x = F.elu(x)
+            # If skip connection the perform the GAT layer and add this to the skip connection values.
+            if self.add_skip_connection:
+                gat_layer_output, edge_index, layer_attention_weight = self.gat_model[i](x, edge_index, return_attention_coeffs)
+                attention_weights_list.append(layer_attention_weight)
+                x = self.perform_skip_connection(
+                    skip_connection_layer=self.gat_model[i+1], 
+                    input_node_features=x, 
+                    gat_output_node_features=gat_layer_output, 
+                    head_concat=self.gat_model[i].concat)
+            else:
+                x = F.dropout(x, p=self.dropout, training=self.training)
+                x, edge_index, layer_attention_weight = self.gat_model[i](x, edge_index, return_attention_coeffs)
+                attention_weights_list.append(layer_attention_weight)
+        return x, edge_index, attention_weights_list
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
@@ -140,10 +162,6 @@ class transGAT(pl.LightningModule):
         self.log('train_loss', loss, on_epoch=True, prog_bar=True, logger=True)  # There's only one step in epoch so we log on epoch
         # TODO log histogram of attention weights?
         return loss
-
-    def on_train_end(self):
-        print("tmp attention coeffs: ", self.gat1.normalised_attention_coeffs)
-        print("tmp attention coeffs mean, std, max: ", self.gat1.normalised_attention_coeffs.mean(), self.gat1.normalised_attention_coeffs.std(), self.gat1.normalised_attention_coeffs.max())
 
     def validation_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
         out = self(batch)
@@ -159,6 +177,7 @@ class transGAT(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         # Copied from https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html#learning-methods-on-graphs
         out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_coeffs=True)
+        self.attention_weights_list = attention_list
         # OW: TODO - Use these attention weights.
         pred = out.argmax(dim=1)  # Use the class with highest probability.
         
