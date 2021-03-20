@@ -22,7 +22,7 @@ from sklearn.metrics import f1_score
 
 
 class induGAT(pl.LightningModule):
-    # def __init__(self, dataset, node_features, num_classes, first_layer_heads=4, second_layer_heads=4, third_layer_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
+    # LvN TODO: use signature like in transgat here too. Khalil can put in other file
     def __init__(self, config):    
         """[summary]
         # UPDATE THIS!!
@@ -227,7 +227,6 @@ class induGAT(pl.LightningModule):
         self.train_ds = PPI(root='/tmp/PPI', split='train')
         self.val_ds = PPI(root='/tmp/PPI', split='val')
         self.test_ds = PPI(root='/tmp/PPI', split='test')
-        
 
     def train_dataloader(self):
         return DataLoader(self.train_ds, batch_size=self.train_batch_size, shuffle=True)        

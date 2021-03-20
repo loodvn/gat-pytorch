@@ -42,14 +42,14 @@ class GATLayer(nn.Module):
         self.normalised_attention_coeffs = None
         self.reset_parameters()
 
-    def forward(self, x, edge_index, return_attention_coeffs=False):
+    def forward(self, x, edge_index, return_attention_weights=False):
         """
         Compute attention-weighted representations of all nodes in x
 
         :param x: Feature matrix of size (N, in_features), where N is the number of nodes
         :param edge_index: Edge indices of size (2, E), where E is the number of edges.
         The edges point from the first row to second row, i.e. edge i = [231, 100] will be an edge that points from 231 to 100.
-        :param return_attention_coeffs: Return a tuple (out, (edge_index, normalised_attention_coeffs))
+        :param return_attention_weights: Return a tuple (out, (edge_index, normalised_attention_coeffs))
 
         :return: New node representations of size (N, num_heads*out_features), optionally with attention coefficients
         """
@@ -129,8 +129,8 @@ class GATLayer(nn.Module):
         else:
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
 
-        if return_attention_coeffs:
-            return (output_features, edge_index, self.normalised_attention_coeffs)
+        if return_attention_weights:
+            return output_features, (edge_index, self.normalised_attention_coeffs)
 
         return output_features
     
