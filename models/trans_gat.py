@@ -7,64 +7,115 @@ from torch import nn
 from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
+from .gat_layer import GATLayer
 
-from models.gat_layer import GATLayer
-
-# TODO improve logging, e.g. tensorboard
-# TODO validation
-# TODO loading correctly
 # pl.seed_everything(42)
 
 
 class transGAT(pl.LightningModule):
-    def __init__(self, dataset, node_features, num_classes, in_heads=8, out_heads=1, head_features=8, l2_reg=0.0005, lr = 0.005, dropout=0.6):
+    def __init__(self, config):
+        """[summary]
+        # UPDATE THIS!!!!!!
+        Args:
+            config (dict): 
+                - layer_type: str
+                - num_input_node_features: int,
+                - num_layers: int
+                - num_heads_per_layer: List[int]
+                - heads_concat_per_layer: List[bool]
+                - head_output_features_per_layer: List[int]
+                - add_skip_connection: bool 
+                - dropout: float
+                - l2_reg: float
+                - learning_rate: float
+                - train_batch_size: int
+                - num_epochs: int
+        """
         super(transGAT, self).__init__()
-        self.dataset_name = dataset
 
-        self.head_features = head_features
-        self.in_heads = in_heads
-        self.out_heads = out_heads
+        # Decide whether we are using our layer or the default implimentation for PyTorch Geometric of GAT.
+        # See: (https://pytorch-geometric.readthedocs.io/en/latest/modules/nn.html#torch_geometric.nn.conv.GATConv)
+        self.layer_type = config.get('layer_type')
+        self.add_skip_connection = config.get('add_skip_connection')
 
-        self.lr = lr
-        self.l2_reg = l2_reg
-        self.dropout = 0 #dropout
-
-        self.node_features = node_features
-        self.num_classes = num_classes
-
-        # self.patience = 100
-        # self.lossMin = 1e10
-        # print(self.lossMin)
-        # print(self.dataset)
-        # print(self.head_features)
-        # print(self.in_heads)
-        # print(self.out_heads)
-        # print(self.lr)
-        # print(self.l2_reg)
-        # print(self.dropout)
-        # print(self.node_features)
-        # print(self.num_classes)
-
-        # self.gat1 = GATConv(in_channels=self.node_features, out_channels=self.head_features, heads=self.in_heads, dropout=self.dropout, bias=False, add_self_loops=False)
-        self.gat1 = GATLayer(in_features=self.node_features, out_features=self.head_features, num_heads=self.in_heads, concat=True, dropout=self.dropout, bias=False, add_self_loops=False, const_attention=False)
-        # self.gat2 = GATConv(in_channels=self.head_features * self.in_heads, out_channels=self.num_classes, heads=out_heads, concat=False, dropout=self.dropout, bias=False, add_self_loops=False)
-        self.gat2 = GATLayer(in_features=self.head_features * self.in_heads, out_features=self.num_classes, num_heads=out_heads, concat=False, dropout=self.dropout, bias=False, add_self_loops=False, const_attention=False)
-        # print(self.gat1)
-        # print(self.gat2)
+        self.dataset_name = config.get('dataset')
+        self.num_layers = config.get('num_layers')
+        self.lr = config.get('learning_rate')
+        self.l2_reg = config.get('l2_reg')
+        self.dropout = config.get('dropout')
+        self.input_node_features = config.get('num_input_node_features')
+        self.num_classes = config.get('num_classes')
+        self.train_batch_size = int(config.get('train_batch_size'))
+        self.num_epochs = int(config.get('num_epochs'))
+        # In order to make the number of heads consistent as this is used in the in_channels for our GAT layer we have prepended the list given by the user
+        # with a 1 to signal that in the first layer, the input is just 1 * num_input_node_features
+        self.num_heads_per_layer = [1] + config.get('num_heads_per_layer')
+        self.head_output_features_per_layer = config.get('head_output_features_per_layer')
+        self.heads_concat_per_layer = config.get('heads_concat_per_layer')
 
         self.criterion = torch.nn.CrossEntropyLoss(reduction='mean')
+        
+        # Collect the layers into a list and then place together into a Sequential model.
+        layers = []
+        for i in range(0, self.num_layers):
+            # Depending on the implimentation layer type depends what we do.
+            if self.layer_type == "Ours":
+                pass
+                # const_attention=False must be set here
+                #GATLayer(in_features=self.node_features, out_features=self.head_features, num_heads=self.in_heads, concat=True, dropout=self.dropout, bias=False, add_self_loops=False, const_attention=False)
+            else:
+                gat_layer = GATConv(
+                    in_channels=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
+                    out_channels=self.head_output_features_per_layer[i+1], 
+                    heads=self.num_heads_per_layer[i+1], 
+                    add_self_loops=True,
+                    dropout=self.dropout,
+                    concat=self.heads_concat_per_layer[i]
+                ) 
+            layers.append(gat_layer)
 
-    def reset_parameters(self):
-        self.gat1.reset_parameters()
-        self.gat2.reset_parameters()
+            # In either case if we need to add skip connections we can do this outside of the layer.
+            if self.add_skip_connection:
+                # If we concat then the output shape will be the number of heads. Otherwise we take a mean over each head and therefore can omit this.
+                if self.heads_concat_per_layer[i]:
+                    skip_layer = Linear(
+                        in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
+                        out_features=self.head_output_features_per_layer[i+1] * self.num_heads_per_layer[i+1],
+                        bias=False
+                    )
+                else:
+                    skip_layer = Linear(
+                        in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
+                        out_features=self.num_heads_per_layer[i+1] * self.head_output_features_per_layer[i+1],
+                        bias=False
+                    )
+                layers.append(skip_layer)
+        
+        # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
+        self.gat_model = nn.ModuleList(layers)
+        print(self.gat_model)
+
+    # def reset_parameters(self):
+    #     self.gat1.reset_parameters()
+    #     self.gat2.reset_parameters()
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
-        # Dropout is applied within the layer
-        x = self.gat1(x, edge_index)
-        x = nn.ELU()(x)
-        x = self.gat2(x, edge_index)
-        # Returning raw logits
+        self.layer_step = 2 if self.add_skip_connection else 1
+
+        for i in range(0, len(self.gat_model), self.layer_step):
+            if i != 0:
+                x = F.elu(x)
+            # If skip connection the perform the GAT layer and add this to the skip connection values.
+            if self.add_skip_connection:
+                x = self.perform_skip_connection(
+                    skip_connection_layer=self.gat_model[i+1], 
+                    input_node_features=x, 
+                    gat_output_node_features=self.gat_model[i](x, edge_index), 
+                    head_concat=self.gat_model[i].concat)
+            else:
+                x = F.dropout(x, p=self.dropout, training=self.training)
+                x = self.gat_model[i](x, edge_index)
         return x
 
     def forward_and_return_attention(self, data, return_attention_coeffs=True):
@@ -101,7 +152,6 @@ class transGAT(pl.LightningModule):
         pred = out.argmax(dim=1)  # Use the class with highest probability.
         correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
         val_acc = (correct / batch.val_mask.sum().item())
-
         self.log('val_loss', val_loss, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_acc', val_acc, on_epoch=True, prog_bar=True, logger=True)
         return val_loss
