@@ -1,15 +1,16 @@
-import torch
-import sys
-import torch.nn.functional as F
 import argparse
+import sys
+
+import pytorch_lightning as pl
+import torch
+from torch import nn
 from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
-import torch.nn as nn
-import pytorch_lightning as pl
-from models.gat_layer import GATLayer
+from .gat_layer import GATLayer
 
 # pl.seed_everything(42)
+
 
 class transGAT(pl.LightningModule):
     def __init__(self, config):
@@ -37,7 +38,7 @@ class transGAT(pl.LightningModule):
         self.layer_type = config.get('layer_type')
         self.add_skip_connection = config.get('add_skip_connection')
 
-        self.dataset = config.get('dataset')
+        self.dataset_name = config.get('dataset')
         self.num_layers = config.get('num_layers')
         self.lr = config.get('learning_rate')
         self.l2_reg = config.get('l2_reg')
@@ -51,6 +52,8 @@ class transGAT(pl.LightningModule):
         self.num_heads_per_layer = [1] + config.get('num_heads_per_layer')
         self.head_output_features_per_layer = config.get('head_output_features_per_layer')
         self.heads_concat_per_layer = config.get('heads_concat_per_layer')
+
+        self.criterion = torch.nn.CrossEntropyLoss(reduction='mean')
         
         # Collect the layers into a list and then place together into a Sequential model.
         layers = []
@@ -58,6 +61,8 @@ class transGAT(pl.LightningModule):
             # Depending on the implimentation layer type depends what we do.
             if self.layer_type == "Ours":
                 pass
+                # const_attention=False must be set here
+                #GATLayer(in_features=self.node_features, out_features=self.head_features, num_heads=self.in_heads, concat=True, dropout=self.dropout, bias=False, add_self_loops=False, const_attention=False)
             else:
                 gat_layer = GATConv(
                     in_channels=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
@@ -111,9 +116,19 @@ class transGAT(pl.LightningModule):
             else:
                 x = F.dropout(x, p=self.dropout, training=self.training)
                 x = self.gat_model[i](x, edge_index)
+        return x
 
-        return F.log_softmax(x, dim=1) 
-
+    def forward_and_return_attention(self, data, return_attention_coeffs=True):
+        x, edge_index = data.x, data.edge_index
+        attention_weight_list = []
+        # Dropout is applied within the layer
+        x, edge_index, attention_weights_layer1 = self.gat1(x, edge_index, return_attention_coeffs)
+        attention_weight_list.append(attention_weights_layer1)
+        x = nn.ELU()(x)
+        x, edge_index, attention_weights_layer2 = self.gat2(x, edge_index, return_attention_coeffs)
+        attention_weight_list.append(attention_weights_layer2)
+        # Returning raw logits
+        return x, edge_index, attention_weight_list
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
@@ -121,47 +136,49 @@ class transGAT(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
         out = self(batch)
-        loss = F.nll_loss(out[batch.train_mask], batch.y[batch.train_mask])
-        print(loss)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        loss = self.criterion(out[batch.train_mask], batch.y[batch.train_mask])
+        self.log('train_loss', loss, on_epoch=True, prog_bar=True, logger=True)  # There's only one step in epoch so we log on epoch
+        # TODO log histogram of attention weights?
         return loss
 
+    def on_train_end(self):
+        print("tmp attention coeffs: ", self.gat1.normalised_attention_coeffs)
+        print("tmp attention coeffs mean, std, max: ", self.gat1.normalised_attention_coeffs.mean(), self.gat1.normalised_attention_coeffs.std(), self.gat1.normalised_attention_coeffs.max())
 
     def validation_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
         out = self(batch)
+        val_loss = self.criterion(out[batch.val_mask], batch.y[batch.val_mask])
+
         pred = out.argmax(dim=1)  # Use the class with highest probability.
         correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
         val_acc = (correct / batch.val_mask.sum().item())
-        val_loss = F.nll_loss(out[batch.val_mask], batch.y[batch.val_mask])
-        
         self.log('val_loss', val_loss, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_acc', val_acc, on_epoch=True, prog_bar=True, logger=True)
         return val_loss
 
     def test_step(self, batch, batch_idx):
-        out = self(batch)
+        # Copied from https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html#learning-methods-on-graphs
+        out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_coeffs=True)
+        # OW: TODO - Use these attention weights.
         pred = out.argmax(dim=1)  # Use the class with highest probability.
-
+        
         test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.
         test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
 
-        self.log('test_acc', test_acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_acc', test_acc, on_epoch=True, prog_bar=True, logger=True)
+        print("This is the test accuracy")
+        print(test_acc)
         return test_acc
 
-    
-    # Apply mask at this stage to save reloading?
-    # Should not use planetoid as default
+    def prepare_data(self):
+        self.dataset = Planetoid(root='/tmp/' + self.dataset_name, name=self.dataset_name)
+
+    # Transductive: Load whole graph, mask out when calculating loss
     def train_dataloader(self):
-        dataset = Planetoid(root='/tmp/' + self.dataset, name=self.dataset)
-        # print(data.train_mask.sum().item())
-        # print(data.val_mask.sum().item())
-        # print(data.test_mask.sum().item())
-        return DataLoader(dataset) #, shuffle=True)
+        return DataLoader(self.dataset)
         
     def val_dataloader(self):
-        dataset = Planetoid(root='/tmp/' + self.dataset, name=self.dataset)
-        return DataLoader(dataset)
+        return DataLoader(self.dataset)
 
     def test_dataloader(self):
-        dataset = Planetoid(root='/tmp/' + self.dataset, name=self.dataset)        
-        return DataLoader(dataset)
+        return DataLoader(self.dataset)

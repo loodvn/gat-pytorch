@@ -7,7 +7,7 @@ from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
 from torch.nn import Sigmoid, Linear, BCEWithLogitsLoss, ModuleList
 import pytorch_lightning as pl
-from models.gat_layer import GATLayer
+from .gat_layer import GATLayer
 from sklearn.metrics import f1_score
 
 # TODO improve logging, e.g. tensorboard
@@ -19,6 +19,7 @@ from sklearn.metrics import f1_score
 
 # OW test
 # Addition 
+
 
 class induGAT(pl.LightningModule):
     # def __init__(self, dataset, node_features, num_classes, first_layer_heads=4, second_layer_heads=4, third_layer_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
@@ -151,13 +152,12 @@ class induGAT(pl.LightningModule):
         
         return gat_output_node_features
 
-
-    
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
         return optimizer
 
     def training_step(self, batch, batch_idx):
+        # print("batch dims: ", batch.x.size())
         out = self(batch)
     
         loss_fn = BCEWithLogitsLoss(reduction='mean') 
@@ -173,13 +173,12 @@ class induGAT(pl.LightningModule):
         out = self(batch)
         loss_fn = BCEWithLogitsLoss(reduction='mean') 
         loss = loss_fn(out, batch.y)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
+        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         f1 = f1_score(y_pred=out.detach().cpu().numpy() > 0, y_true=batch.y.detach().cpu().numpy(), average="micro")
         self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
-
 
     def test_step(self, batch, batch_idx):
         out = self(batch)
@@ -196,17 +195,22 @@ class induGAT(pl.LightningModule):
         self.train_ds = PPI(root='/tmp/PPI', split='train')
         self.val_ds = PPI(root='/tmp/PPI', split='val')
         self.test_ds = PPI(root='/tmp/PPI', split='test')
-
-        # self.input_node_features = self.train_ds.num_node_features
-        # self.num_classes = self.train_ds.num_classes
-        # self.head_output_features_per_layer[0] = self.input_node_features
-        # self.head_output_features_per_layer[-1] = self.num_classes
+        
 
     def train_dataloader(self):
         return DataLoader(self.train_ds, batch_size=self.train_batch_size, shuffle=True)        
     
     def val_dataloader(self):
-        return DataLoader(self.val_ds) 
+        return DataLoader(self.val_ds)
 
     def test_dataloader(self):
         return DataLoader(self.test_ds)
+
+if __name__ == "__main__":
+    import time
+    start = time.time()
+    gat = induGAT(dataset='PPI', node_features=50, num_classes=121, lr=0.005, l2_reg=0)
+    trainer = pl.Trainer(max_epochs=100)#, limit_train_batches=0.1)
+    trainer.fit(gat)
+    trainer.test()
+    end = time.time()
