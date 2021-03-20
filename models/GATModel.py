@@ -32,7 +32,7 @@ class GATModel(pl.LightningModule):
                  learning_rate: float,
                  train_batch_size: int,
                  num_epochs: int,
-                 **kwargs):#test_type, num_layers, layer_type):    # **config, 
+                 **kwargs):
         """[summary]
         # UPDATE THIS!!
         Args:
@@ -119,8 +119,8 @@ class GATModel(pl.LightningModule):
                 layers.append(skip_layer)
         
         # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
-        self.gat_model = nn.ModuleList(layers)
-        print(self.gat_model)
+        self.layer_list = nn.ModuleList(layers)
+        print(self.layer_list)
 
     def reset_parameters(self):
         self.gat1.reset_parameters()
@@ -131,19 +131,19 @@ class GATModel(pl.LightningModule):
         x, edge_index = data.x, data.edge_index
         self.layer_step = 2 if self.add_skip_connection else 1
 
-        for i in range(0, len(self.gat_model), self.layer_step):
+        for i in range(0, len(self.layer_list), self.layer_step):
             if i != 0:
                 x = F.elu(x)
             # If skip connection the perform the GAT layer and add this to the skip connection values.
             if self.add_skip_connection:
                 x = self.perform_skip_connection(
-                    skip_connection_layer=self.gat_model[i+1], 
+                    skip_connection_layer=self.layer_list[i+1], 
                     input_node_features=x, 
-                    gat_output_node_features=self.gat_model[i](x, edge_index), 
-                    head_concat=self.gat_model[i].concat)
+                    gat_output_node_features=self.layer_list[i](x, edge_index), 
+                    head_concat=self.layer_list[i].concat)
             else:
                 x = F.dropout(x, p=self.dropout, training=self.training)
-                x = self.gat_model[i](x, edge_index)
+                x = self.layer_list[i](x, edge_index)
         return x
 
     # def forward_and_return_attention(self, data, return_attention_coeffs=True):
@@ -151,21 +151,21 @@ class GATModel(pl.LightningModule):
     #     self.layer_step = 2 if self.add_skip_connection else 1
     #     attention_weights_list = []
 
-    #     for i in range(0, len(self.gat_model), self.layer_step):
+    #     for i in range(0, len(self.layer_list), self.layer_step):
     #         if i != 0:
     #             x = F.elu(x)
     #         # If skip connection the perform the GAT layer and add this to the skip connection values.
     #         if self.add_skip_connection:
-    #             gat_layer_output, edge_index, layer_attention_weight = self.gat_model[i](x, edge_index, return_attention_coeffs)
+    #             gat_layer_output, edge_index, layer_attention_weight = self.layer_list[i](x, edge_index, return_attention_coeffs)
     #             attention_weights_list.append(layer_attention_weight)
     #             x = self.perform_skip_connection(
-    #                 skip_connection_layer=self.gat_model[i+1], 
+    #                 skip_connection_layer=self.layer_list[i+1], 
     #                 input_node_features=x, 
     #                 gat_output_node_features=gat_layer_output, 
-    #                 head_concat=self.gat_model[i].concat)
+    #                 head_concat=self.layer_list[i].concat)
     #         else:
     #             x = F.dropout(x, p=self.dropout, training=self.training)
-    #             x, edge_index, layer_attention_weight = self.gat_model[i](x, edge_index, return_attention_coeffs)
+    #             x, edge_index, layer_attention_weight = self.layer_list[i](x, edge_index, return_attention_coeffs)
     #             attention_weights_list.append(layer_attention_weight)
     #     return x, edge_index, attention_weights_list
 

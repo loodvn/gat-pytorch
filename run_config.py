@@ -28,7 +28,7 @@ data_config = {
         "head_output_features_per_layer": [1433, 8, 7],  
         "num_classes": 7,
         "add_skip_connection": False, 
-        "dropout": 0.6,
+        "dropout": 0.6, # kind of better with 0.65
         "l2_reg": 0.0005, 
         "learning_rate": 0.005,
         "train_batch_size": 1,
