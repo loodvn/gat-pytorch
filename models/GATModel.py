@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import pytorch_lightning as pl
 import torch
 from torch import nn
+from typing import List
 from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
@@ -16,7 +17,22 @@ import torch.nn.functional as F
 
 
 class GATModel(pl.LightningModule):
-    def __init__(self, config):    
+    def __init__(self, 
+                 layer_type: str,
+                 dataset: str,
+                 num_classes: int,
+                 num_input_node_features: int,
+                 num_layers: int,
+                 num_heads_per_layer: List[int],
+                 heads_concat_per_layer: List[bool],
+                 head_output_features_per_layer: List[int],
+                 add_skip_connection: bool,
+                 dropout: float,
+                 l2_reg: float,
+                 learning_rate: float,
+                 train_batch_size: int,
+                 num_epochs: int,
+                 **kwargs):#test_type, num_layers, layer_type):    # **config, 
         """[summary]
         # UPDATE THIS!!
         Args:
@@ -36,25 +52,25 @@ class GATModel(pl.LightningModule):
         """
         super(GATModel, self).__init__()
 
-        # Decide whether we are using our layer or the default implimentation for PyTorch Geometric of GAT.
+        # Decide whether we are using our layer or the default implementation for PyTorch Geometric of GAT.
         # See: (https://pytorch-geometric.readthedocs.io/en/latest/modules/nn.html#torch_geometric.nn.conv.GATConv)
-        self.layer_type = config.get('layer_type')
-        self.add_skip_connection = config.get('add_skip_connection')
+        self.layer_type = layer_type
+        self.add_skip_connection = add_skip_connection
 
-        self.dataset_name = config.get('dataset')
-        self.num_layers = config.get('num_layers')
-        self.lr = config.get('learning_rate')
-        self.l2_reg = config.get('l2_reg')
-        self.dropout = config.get('dropout')
-        self.input_node_features = config.get('num_input_node_features')
-        self.num_classes = config.get('num_classes')
-        self.train_batch_size = int(config.get('train_batch_size'))
-        self.num_epochs = int(config.get('num_epochs'))
+        self.dataset_name = dataset
+        self.num_layers = num_layers
+        self.lr = learning_rate
+        self.l2_reg = l2_reg
+        self.dropout = dropout
+        self.input_node_features = num_input_node_features
+        self.num_classes = num_classes
+        self.train_batch_size = int(train_batch_size)
+        self.num_epochs = int(num_epochs)
         # In order to make the number of heads consistent as this is used in the in_channels for our GAT layer we have prepended the list given by the user
         # with a 1 to signal that in the first layer, the input is just 1 * num_input_node_features
-        self.num_heads_per_layer = [1] + config.get('num_heads_per_layer')
-        self.head_output_features_per_layer = config.get('head_output_features_per_layer')
-        self.heads_concat_per_layer = config.get('heads_concat_per_layer')
+        self.num_heads_per_layer = [1] + num_heads_per_layer
+        self.head_output_features_per_layer = head_output_features_per_layer
+        self.heads_concat_per_layer = heads_concat_per_layer
 
         
         # Collect the layers into a list and then place together into a Sequential model.

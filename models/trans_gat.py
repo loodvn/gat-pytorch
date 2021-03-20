@@ -17,8 +17,8 @@ from models.GATModel import GATModel
 
 
 class transGAT(GATModel):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, **config):
+        super().__init__(**config)
         self.criterion = torch.nn.CrossEntropyLoss(reduction='mean')
 
     def training_step(self, batch, batch_idx): 

@@ -13,7 +13,7 @@ def run(config):
 
     early_stop_callback = d_utils.early_stop()
 
-    trainer = pl.Trainer(fast_dev_run=True, max_epochs=int(config['num_epochs']), callbacks=[checkpoint_callback, early_stop_callback])#, show_progress_bar=True)
+    trainer = pl.Trainer(fast_dev_run=False, max_epochs=int(config['num_epochs']), callbacks=[checkpoint_callback, early_stop_callback])#, show_progress_bar=True)
 
     if config['exec_type'] == 'train':
         if config['test_type'] == 'Inductive':
