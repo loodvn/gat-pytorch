@@ -41,6 +41,9 @@ class GATLayer(nn.Module):
         # self.a = nn.Parameter(torch.Tensor(1, self.num_heads, (2*self.out_features)))  # NH different matrices of size 2*F_OUT
         if not const_attention:
             self.a = nn.Linear(in_features=self.num_heads*(2*self.out_features), out_features=self.num_heads, bias=False)  # Attention coefficients
+        
+        if self.dropout > 0:
+            self.dropout_layer = nn.Dropout(p=self.dropout)
 
         if self.bias:
             self.bias_param = nn.Parameter(torch.Tensor(self.num_heads * self.out_features))
@@ -120,7 +123,7 @@ class GATLayer(nn.Module):
 
         # Dropout (3): on normalized attention coefficients
         if self.dropout > 0:
-            normalised_attention_coeffs = nn.Dropout(p=self.dropout)(normalised_attention_coeffs)
+            normalised_attention_coeffs = self.dropout_layer(normalised_attention_coeffs)
 
         # Inside parenthesis of Equation (4):
         # Multiply all nodes in neighbourhood (with incoming edges) by attention coefficients
