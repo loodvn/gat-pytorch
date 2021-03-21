@@ -26,11 +26,11 @@ def load_model(config, file_name_ending):
     Returns:
         pl.LightningModule : model which has had it's weights loaded bcak from a checkpoint.
     """
-
-    if config['test_type'] == 'Inductive':
-        gat_model = induGAT(config)
-    else:
-        gat_model = transGAT(config)
+    # print(config)
+    # if config['test_type'] == 'Inductive':
+    #     gat_model = induGAT(**config)
+    # else:
+    #     gat_model = transGAT(**config)
     
     # TODO: Change to what we do decide to name this.
     gat_model = d_utils.load(config, file_name_ending)

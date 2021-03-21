@@ -32,7 +32,7 @@ def early_stop(monitor='val_loss', patience=100, verbose=True, mode='min'):
 
 def load(config, file_name_ending):
     if config['test_type'] == 'Inductive':
-        loaded_model = induGAT.load_from_checkpoint(checkpoint_path='checkpoints/'+config['dataset'] + file_name_ending, config=config)
+        loaded_model = induGAT.load_from_checkpoint(checkpoint_path='checkpoints/'+config['dataset'] + file_name_ending, **config)
     else:
-        loaded_model = transGAT.load_from_checkpoint(checkpoint_path ='checkpoints/'+config['dataset'] + file_name_ending, config=config)
+        loaded_model = transGAT.load_from_checkpoint(checkpoint_path ='checkpoints/'+config['dataset'] + file_name_ending, **config)
     return loaded_model
