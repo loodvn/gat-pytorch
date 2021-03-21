@@ -97,8 +97,6 @@ class GATLayer(nn.Module):
             # We had to cap the range of logits because they were going to infinity on PPI
             attention_weights = attention_weights - attention_weights.max()
             attention_weights = nn.LeakyReLU()(attention_weights)
-            print("att weights. Min: {}, Max: {}".format(attention_weights.min(), attention_weights.max()))
-            print("Min of abs: {}".format(attention_weights.abs().min()))
             assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
         else:
             # Setting to constant attention, see what happens
@@ -140,9 +138,6 @@ class GATLayer(nn.Module):
             neighbourhood_indices=target_edges,
             aggregated_shape=(N, self.num_heads, self.out_features),
         )
-
-        print("Out features Min: {}, Max: {}".format(output_features.min(), output_features.max()))
-        print("Min of abs: {}".format(output_features.abs().min()))
         # Equation (5)/(6)
         if self.concat:
             output_features = output_features.view(-1, self.num_heads*self.out_features)  # self.num_heads*self.out_features
