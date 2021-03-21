@@ -1,9 +1,24 @@
+from enum import Enum
+
+
+class LayerType(Enum):
+    GATLayer = 1
+    PyTorch_Geometric = 2
+
+
+class Dataset(Enum):
+    PPI = 1
+    Cora = 2
+    Citeseer = 3
+    Pubmed = 4
+
 
 # remember to set values of in and output to features and classes in GAT
 data_config = {
     "PPI": {
         "test_type": "Inductive",
-        "layer_type": "Ours",
+        "layer_type": LayerType.GATLayer,
+        # "layer_type": LayerType.PyTorch_Geometric,
         "num_input_node_features": 50,
         "num_layers": 3, 
         "num_heads_per_layer": [4, 4, 6],  
@@ -20,7 +35,8 @@ data_config = {
     },
     "Cora": {
         "test_type": "Transductive",
-        "layer_type": "Ours",
+        "layer_type": LayerType.GATLayer,
+        # "layer_type": LayerType.PyTorch_Geometric,
         "num_layers": 2, 
         "num_input_node_features": 1433,
         "num_heads_per_layer": [8, 1],  
@@ -28,7 +44,7 @@ data_config = {
         "head_output_features_per_layer": [1433, 8, 7],  
         "num_classes": 7,
         "add_skip_connection": False, 
-        "dropout": 0.6,
+        "dropout": 0, #0.6,
         "l2_reg": 0.0005, 
         "learning_rate": 0.005,
         "train_batch_size": 1,
@@ -37,7 +53,8 @@ data_config = {
     },
     "Citeseer": {
         "test_type": "Transductive",
-        "layer_type": "Ours",
+        "layer_type": LayerType.GATLayer,
+        # "layer_type": LayerType.PyTorch_Geometric,
         "num_layers": 2, 
         "num_input_node_features": 3703,
         "num_heads_per_layer": [8, 1],  
@@ -54,7 +71,8 @@ data_config = {
     },
     "Pubmed": {
         "test_type": "Transductive",
-        "layer_type": "Ours",
+        "layer_type": LayerType.GATLayer,
+        # "layer_type": LayerType.PyTorch_Geometric,
         "num_layers": 2, 
         "num_input_node_features": 500,
         "num_heads_per_layer": [8, 8],  

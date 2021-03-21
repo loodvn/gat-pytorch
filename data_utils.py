@@ -10,6 +10,7 @@ def is_number(s):
     except ValueError:
         return False
 
+
 def checkpoint(filename, monitor='val_loss', dirpath='checkpoints', mode='min',):
     checkpoint_callback = ModelCheckpoint(
         monitor=monitor,
@@ -18,6 +19,7 @@ def checkpoint(filename, monitor='val_loss', dirpath='checkpoints', mode='min',)
         mode=mode,
     )
     return checkpoint_callback
+
 
 def early_stop(monitor='val_loss', patience=100, verbose=True, mode='min'):
     early_stop_callback = EarlyStopping(
