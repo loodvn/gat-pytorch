@@ -23,7 +23,6 @@ from models.GATModel import GATModel
 
 
 class induGAT(GATModel):
-    # def __init__(self, dataset, node_features, num_classes, first_layer_heads=4, second_layer_heads=4, third_layer_heads=6, head_features=256, l2_reg=0, lr = 0.005, dropout=0):
     def __init__(self, **config):    
         super().__init__(**config)
         self.criterion = BCEWithLogitsLoss(reduction='mean')

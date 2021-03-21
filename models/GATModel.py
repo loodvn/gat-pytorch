@@ -1,19 +1,16 @@
-import argparse
-import sys
-from abc import ABC, abstractmethod
+from typing import List
+
 import pytorch_lightning as pl
 import torch
+import torch.nn.functional as F
 from torch import nn
-from typing import List
-from torch_geometric.datasets import Planetoid
+from torch.nn import Linear
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
-from torch.nn import Linear
-# from gat_layer import GATLayer
-import torch.nn.functional as F
 
-
+from .gat_layer import GATLayer
 # pl.seed_everything(42)
+from run_config import LayerType
 
 
 class GATModel(pl.LightningModule):
@@ -77,27 +74,31 @@ class GATModel(pl.LightningModule):
         layers = []
         for i in range(0, self.num_layers):
             # Depending on the implimentation layer type depends what we do.
-            if self.layer_type == "Ours":
+            if self.layer_type == LayerType.GATLayer:
                 # const_attention=False must be set here
                 gat_layer = GATLayer(
-                    in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i], 
-                    out_features=self.head_output_features_per_layer[i+1], 
-                    num_heads=self.num_heads_per_layer[i+1], 
-                    concat=self.heads_concat_per_layer[i], 
-                    dropout=self.dropout, 
-                    bias=False, 
-                    add_self_loops=True, 
+                    in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
+                    out_features=self.head_output_features_per_layer[i+1],
+                    num_heads=self.num_heads_per_layer[i+1],
+                    concat=self.heads_concat_per_layer[i],
+                    dropout=self.dropout,
+                    bias=False,
+                    add_self_loops=True,
                     const_attention=False
                 )
-            else:
+            elif self.layer_type == LayerType.PyTorch_Geometric:
                 gat_layer = GATConv(
                     in_channels=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
-                    out_channels=self.head_output_features_per_layer[i+1], 
-                    heads=self.num_heads_per_layer[i+1], 
-                    add_self_loops=True,
+                    out_channels=self.head_output_features_per_layer[i+1],
+                    heads=self.num_heads_per_layer[i+1],
+                    concat=self.heads_concat_per_layer[i],
                     dropout=self.dropout,
-                    concat=self.heads_concat_per_layer[i]
-                ) 
+                    add_self_loops=True,
+                    bias=False,
+                )
+            else:
+                raise ValueError(f"Incorrect layer type passed in. Must be one of {LayerType.enum_members}")
+
             layers.append(gat_layer)
 
             # In either case if we need to add skip connections we can do this outside of the layer.
@@ -126,7 +127,6 @@ class GATModel(pl.LightningModule):
         self.gat1.reset_parameters()
         self.gat2.reset_parameters()
 
-    
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
         self.layer_step = 2 if self.add_skip_connection else 1

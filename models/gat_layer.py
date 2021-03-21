@@ -90,6 +90,9 @@ class GATLayer(nn.Module):
             # (E, NH, 2*F_OUT) -> (E, NH*(2*F_OUT)): self.a expects an input of size (NH*(2*F_OUT))
             attention_pairs = attention_pairs.view(E, self.num_heads*(2*self.out_features))
             attention_weights = self.a(attention_pairs)  # shape: (E, NH*(2*F_OUT)) -> (E, NH)
+
+            # We had to cap the range of logits because they were going to infinity on PPI
+            attention_weights = attention_weights - attention_weights.max()
             attention_weights = nn.LeakyReLU()(attention_weights)
             assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
         else:
