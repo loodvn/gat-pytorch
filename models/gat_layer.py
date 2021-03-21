@@ -68,6 +68,8 @@ class GATLayer(nn.Module):
         # Transform features
         nodes_transformed = self.W(x)  # (N, F_IN) -> (N, NH*F_OUT)
         nodes_transformed = nodes_transformed.view(N, self.num_heads, self.out_features)  # -> (N, NH, F_OUT)
+        print("node transformed. Min: {}, Max: {}".format(nodes_transformed.min(), nodes_transformed.max()))
+        print("Min of abs: {}".format(nodes_transformed.abs().min()))
         # if self.dropout > 0:
         #     nodes_transformed = nn.Dropout(p=self.dropout)(nodes_transformed)
 
@@ -85,12 +87,16 @@ class GATLayer(nn.Module):
             # (E, NH, 2*F_OUT) -> (E, NH*(2*F_OUT)): self.a expects an input of size (NH*(2*F_OUT))
             attention_pairs = attention_pairs.view(E, self.num_heads*(2*self.out_features))
             attention_weights = self.a(attention_pairs)  # shape: (E, NH*(2*F_OUT)) -> (E, NH)
+            attention_weights = attention_weights - attention_weights.max()
             attention_weights = nn.LeakyReLU()(attention_weights)
+            print("att weights. Min: {}, Max: {}".format(attention_weights.min(), attention_weights.max()))
+            print("Min of abs: {}".format(attention_weights.abs().min()))
             assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
         else:
             # Setting to constant attention, see what happens
             # If attention_weights = 0, then e^0 = 1 so the exponentiated attention weights will = 1
             attention_weights = torch.zeros((E, self.num_heads))
+
 
         # TODO can probably multiply logits with representations and then denominator afterwards?
         # Softmax over neighbourhoods: Equation (2)/(3)
@@ -104,8 +110,10 @@ class GATLayer(nn.Module):
 
         # Broadcast back up to (E,NH) so that we can calculate softmax by dividing each edge by denominator
         attention_softmax_denom = torch.index_select(attention_softmax_denom, dim=0, index=target_edges)
-
-        normalised_attention_coeffs = attention_exp / attention_softmax_denom  # shape: (E, NH) TODO add epsilon for stability?
+        print("att denom. Min: {}, Max: {}".format(attention_softmax_denom.min(), attention_softmax_denom.max()))
+        print("Min of abs: {}".format(attention_softmax_denom.abs().min()))
+        
+        normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-8)  # shape: (E, NH) TODO add epsilon for stability?
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
 
         # Dropout on normalized attention coefficients
@@ -123,6 +131,8 @@ class GATLayer(nn.Module):
             aggregated_shape=(N, self.num_heads, self.out_features),
         )
 
+        print("Out features Min: {}, Max: {}".format(output_features.min(), output_features.max()))
+        print("Min of abs: {}".format(output_features.abs().min()))
         # Equation (5)/(6)
         if self.concat:
             output_features = output_features.view(-1, self.num_heads*self.out_features)  # self.num_heads*self.out_features
@@ -130,7 +140,7 @@ class GATLayer(nn.Module):
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
 
         if return_attention_coeffs:
-            return (output_features, edge_index, self.normalised_attention_coeffs)
+            return (output_features, edge_index, self.normalised_attention_coeffs.detach())
 
         return output_features
     

@@ -168,7 +168,7 @@ class transGAT(pl.LightningModule):
         val_loss = self.criterion(out[batch.val_mask], batch.y[batch.val_mask])
 
         pred = out.argmax(dim=1)  # Use the class with highest probability.
-        correct = float (pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
+        correct = float(pred[batch.val_mask].eq(batch.y[batch.val_mask]).sum().item())
         val_acc = (correct / batch.val_mask.sum().item())
         self.log('val_loss', val_loss, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_acc', val_acc, on_epoch=True, prog_bar=True, logger=True)

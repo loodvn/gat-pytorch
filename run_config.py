@@ -37,7 +37,7 @@ data_config = {
     },
     "Citeseer": {
         "test_type": "Transductive",
-        "layer_type": "PyTorch_Geometric",
+        "layer_type": "Ours",
         "num_layers": 2, 
         "num_input_node_features": 3703,
         "num_heads_per_layer": [8, 1],  
@@ -54,7 +54,7 @@ data_config = {
     },
     "Pubmed": {
         "test_type": "Transductive",
-        "layer_type": "PyTorch_Geometric",
+        "layer_type": "Ours",
         "num_layers": 2, 
         "num_input_node_features": 500,
         "num_heads_per_layer": [8, 8],  

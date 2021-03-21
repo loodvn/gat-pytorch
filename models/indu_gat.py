@@ -155,7 +155,7 @@ class induGAT(pl.LightningModule):
                 gat_output_node_features += skip_connection_layer(input_node_features)
             else:
                 # Remove the hard coding.
-                # OW: TODO - need to pass these in I think.
+                # OW: TODO: need to pass these in I think.
                 skip_output = skip_connection_layer(input_node_features).view(-1, 6, 121)
                 gat_output_node_features += skip_output.mean(dim=1)
         
@@ -191,6 +191,7 @@ class induGAT(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         # print("batch dims: ", batch.x.size())
         out = self(batch)
+        print(out)
     
         loss_fn = BCEWithLogitsLoss(reduction='mean') 
         loss = loss_fn(out, batch.y)
@@ -215,6 +216,7 @@ class induGAT(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         out = self(batch)
         pred = (out > 0)
+        print(pred)
 
         f1 = f1_score(y_pred=pred.detach().cpu().numpy(), y_true=batch.y.detach().cpu().numpy(), average="micro")
         self.log('val_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
