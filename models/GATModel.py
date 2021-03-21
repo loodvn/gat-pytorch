@@ -97,12 +97,12 @@ class GATModel(pl.LightningModule):
                     bias=False,
                 )
             else:
-                raise ValueError(f"Incorrect layer type passed in. Must be one of {LayerType.enum_members}")
+                raise ValueError(f"Incorrect layer type passed in: {self.layer_type}. Must be one of {list(LayerType)}")
 
             layers.append(gat_layer)
 
             # In either case if we need to add skip connections we can do this outside of the layer.
-            # REASONING: IN ORDER TO KEEP THE SAME INTERFACE WE USE THESKIP CONNECTIONS OUTSIDE OF THE GAT LAYER DEF.
+            # REASONING: IN ORDER TO KEEP THE SAME INTERFACE WE USE THE SKIP CONNECTIONS OUTSIDE OF THE GAT LAYER DEF.
             if self.add_skip_connection:
                 # If we concat then the output shape will be the number of heads. Otherwise we take a mean over each head and therefore can omit this.
                 if self.heads_concat_per_layer[i]:
