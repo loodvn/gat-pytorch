@@ -15,7 +15,7 @@ from run_config import LayerType
 
 class GATModel(pl.LightningModule):
     def __init__(self, 
-                 layer_type: str,
+                 layer_type: LayerType,
                  dataset: str,
                  num_classes: int,
                  num_input_node_features: int,
@@ -29,7 +29,7 @@ class GATModel(pl.LightningModule):
                  learning_rate: float,
                  train_batch_size: int,
                  num_epochs: int,
-                 **kwargs):#test_type, num_layers, layer_type):    # **config, 
+                 **kwargs):
         """[summary]
         # UPDATE THIS!!
         Args:
@@ -69,6 +69,7 @@ class GATModel(pl.LightningModule):
         self.head_output_features_per_layer = head_output_features_per_layer
         self.heads_concat_per_layer = heads_concat_per_layer
 
+        self.train_ds, self.val_ds, self.test_ds = None, None, None
         
         # Collect the layers into a list and then place together into a Sequential model.
         layers = []
@@ -148,10 +149,10 @@ class GATModel(pl.LightningModule):
 
     def forward_and_return_attention(self, data, return_attention_coeffs=True):
         x, edge_index = data.x, data.edge_index
-        self.layer_step = 2 if self.add_skip_connection else 1
+        layer_step = 2 if self.add_skip_connection else 1
         attention_weights_list = []
 
-        for i in range(0, len(self.gat_model), self.layer_step):
+        for i in range(0, len(self.gat_model), layer_step):
             if i != 0:
                 x = F.elu(x)
             # If skip connection the perform the GAT layer and add this to the skip connection values.

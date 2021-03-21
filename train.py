@@ -60,7 +60,7 @@ if __name__ == "__main__":
     dataset = args.dataset
 
     if dataset not in data_config.keys():
-        print("That dataset is invalid")
+        print(f"Dataset not valid. Must be one of {data_config.keys()}. {dataset} given.")
     else:
         config = data_config[dataset]
         di = {k: v for k, v in args.__dict__.items() if v is not None}

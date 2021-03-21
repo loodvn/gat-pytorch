@@ -24,7 +24,6 @@ class GATLayer(nn.Module):
         """
         super(GATLayer, self).__init__()
 
-        print(f"tmp in_features={in_features}, out={out_features}, heads{num_heads}, concat={concat}")
         self.in_features = in_features
         self.out_features = out_features
         self.num_heads = num_heads
@@ -96,6 +95,7 @@ class GATLayer(nn.Module):
 
             # We had to cap the range of logits because they were going to infinity on PPI
             attention_weights = attention_weights - attention_weights.max()
+
             attention_weights = nn.LeakyReLU()(attention_weights)
             assert attention_weights.size() == (E, self.num_heads), f"{attention_weights.size()} != {(E, self.num_heads)}"
         else:

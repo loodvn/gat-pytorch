@@ -1,16 +1,6 @@
-from typing import List
-
-import pytorch_lightning as pl
 import torch
-import torch.nn.functional as F
-from torch import nn
-from torch_geometric.data import DataLoader
 from torch_geometric.datasets import Planetoid
-from torch_geometric.nn import GATConv
 
-from run_config import LayerType
-from .gat_layer import GATLayer
-import torch.nn.functional as F
 from models.GATModel import GATModel
 
 
@@ -52,8 +42,6 @@ class transGAT(GATModel):
         test_acc = int(test_correct.sum()) / int(batch.test_mask.sum())  # Derive ratio of correct predictions.
 
         self.log('test_acc', test_acc, on_epoch=True, prog_bar=True, logger=True)
-        print("This is the test accuracy")
-        print(test_acc)
         return test_acc
 
     # Transductive: Load whole graph, mask out when calculating loss
