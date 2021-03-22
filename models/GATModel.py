@@ -175,12 +175,6 @@ class GATModel(pl.LightningModule):
         return x, edge_index, attention_weights_list
 
     def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat, number_of_heads, output_node_features):
-        # print("Layer: {}".format(layer))
-        # print("Input shape:")
-        # print(input_node_features.shape)
-        # print("Output shape: ")
-        # print(output_node_features.shape)
-
         if input_node_features.shape[-1] == gat_output_node_features.shape[-1]:
             # This is fine we can just add these and return.
             gat_output_node_features += input_node_features
