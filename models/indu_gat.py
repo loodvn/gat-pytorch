@@ -48,10 +48,10 @@ class induGAT(GATModel):
 
     def on_after_backward(self):
         print("On backwards")
-        print(self.attention_reg_sum.grad)
+        # print(self.attention_reg_sum.grad)
         # print(self.gat_model[0].W.weight.grad)
         # print(self.gat_model[0].a.weight.grad)
-        print(self.gat_model[0].normalised_attention_coeffs.grad)
+        # print(self.gat_model[0].normalised_attention_coeffs.grad)
 
     def validation_step(self, batch, batch_idx):
         out = self(batch)
