@@ -141,7 +141,9 @@ class GATModel(pl.LightningModule):
                     skip_connection_layer=self.gat_model[i+1], 
                     input_node_features=x, 
                     gat_output_node_features=self.gat_model[i](x, edge_index), 
-                    head_concat=self.gat_model[i].concat)
+                    head_concat=self.gat_model[i].concat, 
+                    number_of_heads=self.gat_model[i].num_heads, 
+                    output_node_features=self.gat_model[i].out_features)
             else:
                 x = F.dropout(x, p=self.dropout, training=self.training)
                 x = self.gat_model[i](x, edge_index)
@@ -163,14 +165,16 @@ class GATModel(pl.LightningModule):
                     skip_connection_layer=self.gat_model[i+1], 
                     input_node_features=x, 
                     gat_output_node_features=gat_layer_output, 
-                    head_concat=self.gat_model[i].concat)
+                    head_concat=self.gat_model[i].concat,
+                    number_of_heads=self.gat_model[i].num_heads, 
+                    output_node_features=self.gat_model[i].out_features)
             else:
                 x = F.dropout(x, p=self.dropout, training=self.training)
                 x, (edge_index, layer_attention_weight) = self.gat_model[i](x, edge_index, return_attention_coeffs)
                 attention_weights_list.append(layer_attention_weight)
         return x, edge_index, attention_weights_list
 
-    def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat):
+    def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat, number_of_heads, output_node_features):
         # print("Layer: {}".format(layer))
         # print("Input shape:")
         # print(input_node_features.shape)
@@ -186,7 +190,7 @@ class GATModel(pl.LightningModule):
             else:
                 # Remove the hard coding.
                 # OW: TODO - need to pass these in I think.
-                skip_output = skip_connection_layer(input_node_features).view(-1, 6, 121)
+                skip_output = skip_connection_layer(input_node_features).view(-1, number_of_heads, output_node_features)
                 gat_output_node_features += skip_output.mean(dim=1)
         
         return gat_output_node_features

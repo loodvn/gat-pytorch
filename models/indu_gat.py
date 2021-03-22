@@ -27,52 +27,6 @@ class induGAT(GATModel):
         super().__init__(**config)
         self.criterion = BCEWithLogitsLoss(reduction='mean')
 
-        # Is this deffo correct should we instead be doing (x, 1024) -> (x, 121) rather than (x, 1024) -> (x, 6, 121) thenmean to -> (x, 121)
-        # OW / LVN.
-        
-       
-    def forward(self, data):
-
-        x, edge_index = data.x, data.edge_index
-        self.layer_step = 2 if self.add_skip_connection else 1
-
-        for i in range(0, len(self.gat_model), self.layer_step):
-            if i != 0:
-                x = F.elu(x)
-            # If skip connection the perform the GAT layer and add this to the skip connection values.
-            if self.add_skip_connection:
-                x = self.perform_skip_connection(
-                    skip_connection_layer=self.gat_model[i+1], 
-                    input_node_features=x, 
-                    gat_output_node_features=self.gat_model[i](x, edge_index), 
-                    head_concat=self.gat_model[i].concat)
-            else:
-                x = self.gat_model[i](x, edge_index)
-            
-            # In either can then perform a elu activation.
-        return x
-    
-    def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat):
-        # print("Layer: {}".format(layer))
-        # print("Input shape:")
-        # print(input_node_features.shape)
-        # print("Output shape: ")
-        # print(output_node_features.shape)
-
-        if input_node_features.shape[-1] == gat_output_node_features.shape[-1]:
-            # This is fine we can just add these and return.
-            gat_output_node_features += input_node_features
-        else:
-            if head_concat:
-                gat_output_node_features += skip_connection_layer(input_node_features)
-            else:
-                # Remove the hard coding.
-                # OW: TODO: need to pass these in I think.
-                skip_output = skip_connection_layer(input_node_features).view(-1, 6, 121)
-                gat_output_node_features += skip_output.mean(dim=1)
-        
-        return gat_output_node_features
-
     def training_step(self, batch, batch_idx):
         out = self(batch)
     
