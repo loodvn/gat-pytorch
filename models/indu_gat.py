@@ -28,10 +28,19 @@ class induGAT(GATModel):
         self.criterion = BCEWithLogitsLoss(reduction='mean')
 
     def training_step(self, batch, batch_idx):
-        out = self(batch)
+        
+        l1_lambda = 0.001
+        # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
+        out, edge_index, attention_weights_list = self.forward_and_return_attention(batch.x, batch.edge_index, True)
+
+        # 
     
         loss_fn = BCEWithLogitsLoss(reduction='mean') 
         loss = loss_fn(out, batch.y)
+
+        # Idea is here to add to the loss function.
+        # loss += 
+
         self.log('train_loss', loss.detach().cpu(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
         f1 = f1_score(y_pred=out.detach().cpu().numpy() > 0, y_true=batch.y.detach().cpu().numpy(), average='micro')
