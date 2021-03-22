@@ -74,9 +74,7 @@ class induGAT(GATModel):
         return gat_output_node_features
 
     def training_step(self, batch, batch_idx):
-        # print("batch dims: ", batch.x.size())
         out = self(batch)
-        print(out)
     
         loss_fn = BCEWithLogitsLoss(reduction='mean') 
         loss = loss_fn(out, batch.y)
