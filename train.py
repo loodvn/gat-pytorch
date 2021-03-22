@@ -14,7 +14,7 @@ def run(config):
     early_stop_callback = d_utils.early_stop()
 
     # Use same random seed for reproducible, deterministic results
-    pl.seed_everything(42)
+    # pl.seed_everything(42)
 
     trainer = pl.Trainer(
         fast_dev_run=False,
