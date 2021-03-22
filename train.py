@@ -32,7 +32,7 @@ def run(config):
             gat = transGAT(**config)
 
         trainer.fit(gat)
-        trainer.test(gat)
+        # trainer.test(gat)
         checkpoint_callback.best_model_path
         trainer.test()
     else:
