@@ -31,10 +31,8 @@ class induGAT(GATModel):
         
         l1_lambda = 0.001
         # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
-        out, edge_index, attention_weights_list = self.forward_and_return_attention(batch.x, batch.edge_index, True)
+        out, edge_index, attention_weights_list, _ = self.forward_and_return_attention(batch, True)
 
-        # 
-    
         loss_fn = BCEWithLogitsLoss(reduction='mean') 
         loss = loss_fn(out, batch.y)
 
@@ -47,6 +45,13 @@ class induGAT(GATModel):
         self.log('train_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
+
+    def on_after_backward(self):
+        print("On backwards")
+        print(self.attention_reg_sum.grad)
+        # print(self.gat_model[0].W.weight.grad)
+        # print(self.gat_model[0].a.weight.grad)
+        print(self.gat_model[0].normalised_attention_coeffs.grad)
 
     def validation_step(self, batch, batch_idx):
         out = self(batch)

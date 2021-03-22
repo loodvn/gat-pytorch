@@ -153,14 +153,19 @@ class GATModel(pl.LightningModule):
         x, edge_index = data.x, data.edge_index
         layer_step = 2 if self.add_skip_connection else 1
         attention_weights_list = []
+        self.attention_reg_sum = torch.tensor(0.0)
 
         for i in range(0, len(self.gat_model), layer_step):
             if i != 0:
                 x = F.elu(x)
             # If skip connection the perform the GAT layer and add this to the skip connection values.
             if self.add_skip_connection:
-                gat_layer_output, edge_index, layer_attention_weight = self.gat_model[i](x, edge_index, return_attention_coeffs)
+                gat_layer_output, (edge_index, layer_attention_weight) = self.gat_model[i](x, edge_index, return_attention_coeffs)
+
+                self.attention_reg_sum = self.attention_reg_sum + torch.norm(layer_attention_weight, p=1)
+
                 attention_weights_list.append(layer_attention_weight)
+
                 x = self.perform_skip_connection(
                     skip_connection_layer=self.gat_model[i+1], 
                     input_node_features=x, 
@@ -171,8 +176,11 @@ class GATModel(pl.LightningModule):
             else:
                 x = F.dropout(x, p=self.dropout, training=self.training)
                 x, (edge_index, layer_attention_weight) = self.gat_model[i](x, edge_index, return_attention_coeffs)
+
+                self.attention_reg_sum = self.attention_reg_sum + torch.norm(layer_attention_weight, p=2)
+
                 attention_weights_list.append(layer_attention_weight)
-        return x, edge_index, attention_weights_list
+        return x, edge_index, attention_weights_list, self.attention_reg_sum
 
     def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat, number_of_heads, output_node_features):
         # print("Layer: {}".format(layer))

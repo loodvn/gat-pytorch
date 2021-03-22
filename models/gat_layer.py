@@ -144,11 +144,12 @@ class GATLayer(nn.Module):
         else:
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
 
+        
         if self.bias:
             output_features += self.bias_param
 
         if return_attention_weights:
-            return output_features, (edge_index, self.normalised_attention_coeffs.detach().cpu())
+            return output_features, (edge_index, self.normalised_attention_coeffs)
 
         return output_features
     

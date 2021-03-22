@@ -13,12 +13,29 @@ class transGAT(GATModel):
         self.criterion = torch.nn.CrossEntropyLoss(reduction='mean')
 
     def training_step(self, batch, batch_idx): 
-        out = self(batch)
-        loss = self.criterion(out[batch.train_mask], batch.y[batch.train_mask])
+
+        out, edge_index, attention_weights_list, att_reg = self.forward_and_return_attention(batch, True)
+
+        # We can then add a norm over the attention weights.
+        # attention_weights_reg_term = 0
+        lambda_reg_term = torch.tensor(0.01)
+        # for att_weights in attention_weights_list:
+        #     attention_weights_reg_term = attention_weights_reg_term + torch.norm(att_weights, p=1)
+        print("Attention reg term: {}".format(att_reg))
+
+        loss = self.criterion(out[batch.train_mask], batch.y[batch.train_mask]) + lambda_reg_term * att_reg
         self.log('train_loss', loss, on_epoch=True, prog_bar=True,
                  logger=True)  # There's only one step in epoch so we log on epoch
         # TODO log histogram of attention weights?
         return loss
+
+    def on_after_backward(self):
+        print("On backwards")
+        print(self.attention_reg_sum.grad)
+        # print(self.gat_model[0].W.weight.grad)
+        # print(self.gat_model[0].a.weight.grad)
+        print(self.gat_model[0].normalised_attention_coeffs.grad)
+
 
     def validation_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
         out = self(batch)

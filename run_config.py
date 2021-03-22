@@ -46,7 +46,7 @@ data_config = {
         "add_skip_connection": False, 
         "dropout": 0, #0.6,
         "l2_reg": 0.0005, 
-        "learning_rate": 0.005,
+        "learning_rate": 0.1, #0.005,
         "train_batch_size": 1,
         "num_epochs": 1000
         # Do we need to add bias.
