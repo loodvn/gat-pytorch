@@ -14,15 +14,15 @@ def run(config):
     early_stop_callback = d_utils.early_stop()
 
     # Use same random seed for reproducible, deterministic results
-    # pl.seed_everything(42)
+    pl.seed_everything(42)
 
     trainer = pl.Trainer(
         fast_dev_run=False,
         max_epochs=int(config['num_epochs']),
         callbacks=[checkpoint_callback, early_stop_callback],
-        deterministic=True,
-        weights_summary='full',
-        stochastic_weight_avg=True,
+        # deterministic=True,
+        # weights_summary='full',
+        # stochastic_weight_avg=True,
     )
 
     if config['exec_type'] == 'train':
@@ -32,9 +32,9 @@ def run(config):
             gat = transGAT(**config)
 
         trainer.fit(gat)
-        # trainer.test(gat)
-        # checkpoint_callback.best_model_path
-        # trainer.test(gat)
+        trainer.test(gat)
+        checkpoint_callback.best_model_path
+        trainer.test()
     else:
         try:
             gat = d_utils.load(config)
