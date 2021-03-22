@@ -81,7 +81,7 @@ class induGAT(GATModel):
         self.log('train_loss', loss.detach().cpu(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
         f1 = f1_score(y_pred=out.detach().cpu().numpy() > 0, y_true=batch.y.detach().cpu().numpy(), average='micro')
-        self.log('train_f1_score', f1.detach().cpu().numpy(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1_score', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
