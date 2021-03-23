@@ -38,7 +38,7 @@ class induGAT(GATModel):
         # print(f"norm loss with lambda = {self.attention_penalty}", norm_loss.detach().cpu())
         self.log("train_norm_loss", norm_loss.detach().cpu())
 
-        loss = loss + norm_loss
+        loss = loss + torch.minimum(norm_loss, torch.tensor([10.0]))
 
         self.log('train_loss', loss.detach().cpu(), prog_bar=True, logger=True)
         
