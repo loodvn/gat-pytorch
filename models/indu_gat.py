@@ -30,6 +30,7 @@ class induGAT(GATModel):
 
         # Penalise deviation from constant attention (const-GAT), for analysing the gain of attention
         attention_norm = self.calc_attention_norm(edge_index, attention_list)
+        self.log("train_attention_norm", attention_norm.detach().cpu())
 
         norm_loss = self.attention_penalty * attention_norm
         print("bce loss: ", loss.detach().cpu())
@@ -113,6 +114,7 @@ class induGAT(GATModel):
                                                      attention_minus_const.detach().cpu())
 
             norm_i = torch.norm(attention_minus_const, p=1)
+            norm_i = norm_i / neighbourhood_indices.size(0)  # Can also get average norm per edge
             attention_norm = attention_norm + norm_i
 
         print("attention norm total:", attention_norm.detach().cpu())
@@ -120,6 +122,7 @@ class induGAT(GATModel):
         print("attention norm / layers:", attention_norm.detach().cpu())
 
         return attention_norm
+
 
 if __name__ == "__main__":
     import run_config
