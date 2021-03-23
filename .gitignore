@@ -140,3 +140,5 @@ lightning_logs/
 *.jpg
 *.png
 .DS_Store
+
+*.ckpt

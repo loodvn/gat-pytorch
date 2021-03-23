@@ -85,7 +85,7 @@ def draw_entropy_histogram(edge_index: torch.Tensor,
     target_nodes = edge_index[1]
 
     # Need the edge index for the filtering on the entropy calculations.
-    for layer in range(0, len(attention_weights)):
+    for layer in range(0, len(attention_weights) - 1):
 
         attention_weights_for_layer = attention_weights[layer]
         num_of_heads = attention_weights_for_layer.shape[1]
@@ -105,7 +105,8 @@ def draw_entropy_histogram(edge_index: torch.Tensor,
                 # IDEA: Before we were accounting for the differnet degrees by using a histogram, which highlights any aggregated differences in the neighbourhood distributions.
                 # In this, we instead scale the weights by degree, meaning that initially we expected to see all 1's, because we have softmaxed over the degree, only to multiple by it.
                 # But, as the training continutes we should see this changes to a histogram more skewed towards 0.
-                weights_for_node_output = attention_weights_for_head[target_nodes == node_id][0]
+                weights_for_node_output = attention_weights_for_head[target_nodes == node_id]
+                # print(weights_for_node_output)
      
                 neighbourhood_entropy_list.append(entropy(weights_for_node_output, base=2))
                 # For a comparision we add the uniform distribution over the neigbours by assigning each weight to be 1 / (# of neighbours)
