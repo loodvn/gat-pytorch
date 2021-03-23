@@ -142,7 +142,7 @@ class GATModel(pl.LightningModule):
 
             x = F.dropout(x, p=self.dropout, training=self.training)
             # Get outputs from GAT layer
-            x, (edge_index, layer_attention_weight) = self.gat_layer_list[i](x, edge_index)
+            x = self.gat_layer_list[i](x, edge_index)
 
             # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection:
