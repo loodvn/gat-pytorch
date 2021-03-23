@@ -20,7 +20,7 @@ class induGAT(GATModel):
 
     def training_step(self, batch, batch_idx):
         
-        l1_lambda = 1  # 0.001
+        l1_lambda = 0.001
 
         # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
         out, edge_index, first_attention, _ = self.forward_and_return_attention(batch, return_attention_coeffs=True)  # attention_weights_list
@@ -54,9 +54,12 @@ class induGAT(GATModel):
 
         print("attention_minus const", attention_minus_const.detach().cpu())
 
-        loss = loss + torch.norm(attention_minus_const, p=1)
+        norm_loss = l1_lambda * torch.norm(attention_minus_const, p=1)
+        print("bce loss: ", loss.detach().cpu())
+        print(f"norm loss with lambda = {l1_lambda}", norm_loss.detach().cpu())
 
-        print("loss = norm = ", loss.detach().cpu())
+        loss = loss + norm_loss
+        print("total_loss", loss.detach().cpu())
 
         self.log('train_loss', loss.detach().cpu(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
