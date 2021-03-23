@@ -20,12 +20,13 @@ class induGAT(GATModel):
 
     def training_step(self, batch, batch_idx):
         
-        l1_lambda = 0.001
+        l1_lambda = 1  # 0.001
+
         # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
         out, edge_index, first_attention, _ = self.forward_and_return_attention(batch, return_attention_coeffs=True)  # attention_weights_list
 
-        # loss_fn = BCEWithLogitsLoss(reduction='mean')
-        # loss = loss_fn(out, batch.y)
+        loss_fn = BCEWithLogitsLoss(reduction='mean')
+        loss = loss_fn(out, batch.y)
 
         # Penalise deviation from constant attention (const-GAT), for analysing the gain of attention
 
@@ -43,17 +44,17 @@ class induGAT(GATModel):
 
         # Broadcast back up to (E,NH) so that we can calculate softmax by dividing each edge by denominator
         degrees = torch.index_select(degrees, dim=0, index=neighbourhood_indices)
-        print("new degrees shape", degrees.size().detach().cpu())
+        print("new degrees shape", degrees.size())
 
         unnormalised_attention = first_attention * degrees
 
-        print("unnormalised_attention", unnormalised_attention.detach().cpu(), unnormalised_attention.size().detach().cpu())
+        print("unnormalised_attention", unnormalised_attention.detach().cpu(), unnormalised_attention.size())
 
         attention_minus_const = unnormalised_attention - 1.0
 
         print("attention_minus const", attention_minus_const.detach().cpu())
 
-        loss = torch.norm(attention_minus_const, p=1)
+        loss = loss + torch.norm(attention_minus_const, p=1)
 
         print("loss = norm = ", loss.detach().cpu())
 
