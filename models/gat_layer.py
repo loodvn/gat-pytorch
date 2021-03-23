@@ -1,7 +1,6 @@
 import torch
 from torch import nn
-
-from .utils import add_remaining_self_loops
+from .utils import add_remaining_self_loops, sum_over_neighbourhood
 
 
 class GATLayer(nn.Module):
@@ -101,7 +100,7 @@ class GATLayer(nn.Module):
         else:
             # Setting to constant attention, see what happens
             # If attention_weights = 0, then e^0 = 1 so the exponentiated attention weights will = 1
-            attention_weights = torch.zeros((E, self.num_heads))
+            attention_weights = torch.zeros((E, self.num_heads), device=self.device)
 
 
         # TODO can probably multiply logits with representations and then denominator afterwards?
@@ -109,7 +108,7 @@ class GATLayer(nn.Module):
         attention_exp = attention_weights.exp()
         # Calculate the softmax denominator for each neighbourhood (target): sum attention exponents for each neighbourhood
         # output shape: (N, NH)
-        attention_softmax_denom = self.sum_over_neighbourhood(
+        attention_softmax_denom = sum_over_neighbourhood(
             values=attention_exp,
             neighbourhood_indices=target_edges,
             aggregated_shape=(N, self.num_heads),
@@ -119,7 +118,7 @@ class GATLayer(nn.Module):
         attention_softmax_denom = torch.index_select(attention_softmax_denom, dim=0, index=target_edges)
         # normalise attention coeffs using a softmax operator.
         # Add an extra small number (epsilon) to prevent underflow / division by zero
-        normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-8)  # shape: (E, NH)
+        normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-12)  # shape: (E, NH)
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
 
         # Dropout (3): on normalized attention coefficients
@@ -133,7 +132,7 @@ class GATLayer(nn.Module):
 
         # Equation (4):
         # Get the attention-weighted sum of neighbours. Aggregate again according to target edge.
-        output_features = self.sum_over_neighbourhood(
+        output_features = sum_over_neighbourhood(
             values=weighted_neighbourhood_features,
             neighbourhood_indices=target_edges,
             aggregated_shape=(N, self.num_heads, self.out_features),
@@ -143,12 +142,12 @@ class GATLayer(nn.Module):
             output_features = output_features.view(-1, self.num_heads*self.out_features)  # self.num_heads*self.out_features
         else:
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
-
+        
         if self.bias:
             output_features += self.bias_param
 
         if return_attention_weights:
-            return output_features, (edge_index, self.normalised_attention_coeffs.detach().cpu())
+            return output_features, (edge_index, normalised_attention_coeffs)
 
         return output_features
     
@@ -160,46 +159,6 @@ class GATLayer(nn.Module):
         if self.bias:
             nn.init.zeros_(self.bias_param)
         # Can also init bias=0 if on
-
-    def sum_over_neighbourhood(self, values: torch.tensor, neighbourhood_indices: torch.tensor, aggregated_shape, return_original_size: bool = False) -> torch.tensor:
-        """
-        Aggregate values over N neighbourhoods using torch.scatter_add, with some extra size checking.
-        Optionally return the values broadcasted back up to original size after summing.
-
-        TODO params
-        :param values:
-        :param neighbourhood_indices:
-        :param aggregated_shape:
-        :param return_original_size:
-        :return:
-        """
-
-        # Create a new tensor in which to store the aggregated values. Created using the values tensor, so that the dtype and device match
-        aggregated = values.new_zeros(aggregated_shape)
-
-        # scatter_add requires target to match src's shape, e.g. needs to be of size (E, NH), not (E,)
-        target_idx = explicit_broadcast(neighbourhood_indices, values)
-
-        # Sum all elements according to the neighbourhood index. e.g. index=[0, 0, 0, 1, 1, 2], src=[1, 2, 3, 4, 5, 6] -> [1+2+3, 4+5, 6]
-        aggregated.scatter_add_(dim=0, index=target_idx, src=values)  # shape: (E,NH) -> (N,NH)
-
-        assert aggregated.size() == aggregated_shape, f"Aggregated size incorrect. Is {aggregated.size()}, should be {aggregated_shape}"
-
-        return aggregated
-
-
-# Copied helper function from Aleksa Gordic's pytorch-GAT repo:
-#     https://github.com/gordicaleksa/pytorch-GAT/blob/39c8f0ee634477033e8b1a6e9a6da3c7ed71bbd1/models/definitions/GAT.py#L340
-def explicit_broadcast(this, other):
-    # Append singleton dimensions until this.dim() == other.dim()
-    for _ in range(this.dim(), other.dim()):
-        this = this.unsqueeze(-1)
-
-    # Explicitly expand so that shapes are the same
-    expanded = this.expand_as(other)
-    assert expanded.size() == other.size(), f"Error: Broadcasting didn't work. Have size {expanded.size()}, expected {other.size()}"
-
-    return expanded
 
 
 if __name__ == "__main__":
