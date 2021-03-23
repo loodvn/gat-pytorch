@@ -29,6 +29,7 @@ class GATModel(pl.LightningModule):
                  learning_rate: float,
                  train_batch_size: int,
                  num_epochs: int,
+                 const_attention: bool,
                  **kwargs):
         """[summary]
         # UPDATE THIS!!
@@ -63,6 +64,7 @@ class GATModel(pl.LightningModule):
         self.num_classes = num_classes
         self.train_batch_size = int(train_batch_size)
         self.num_epochs = int(num_epochs)
+        self.const_attention = const_attention
         # In order to make the number of heads consistent as this is used in the in_channels for our GAT layer we have prepended the list given by the user
         # with a 1 to signal that in the first layer, the input is just 1 * num_input_node_features
         self.num_heads_per_layer = [1] + num_heads_per_layer
@@ -77,7 +79,6 @@ class GATModel(pl.LightningModule):
         for i in range(0, self.num_layers):
             # Depending on the implimentation layer type depends what we do.
             if self.layer_type == LayerType.GATLayer:
-                # const_attention=False must be set here
                 gat_layer = GATLayer(
                     in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
                     out_features=self.head_output_features_per_layer[i+1],
@@ -86,7 +87,7 @@ class GATModel(pl.LightningModule):
                     dropout=self.dropout,
                     bias=False,
                     add_self_loops=True,
-                    const_attention=False
+                    const_attention=self.const_attention
                 )
             elif self.layer_type == LayerType.PyTorch_Geometric:
                 gat_layer = GATConv(
@@ -127,9 +128,9 @@ class GATModel(pl.LightningModule):
         print("GAT Layers", self.gat_layer_list)
         print("Skip Layers", self.skip_layer_list)
 
-    def reset_parameters(self):
-        self.gat1.reset_parameters()
-        self.gat2.reset_parameters()
+    # def reset_parameters(self):
+    #     self.gat1.reset_parameters()
+    #     self.gat2.reset_parameters()
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
@@ -192,12 +193,6 @@ class GATModel(pl.LightningModule):
         return x, edge_index, attention_weights_list
 
     def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat, number_of_heads, output_node_features):
-        # print("Layer: {}".format(layer))
-        # print("Input shape:")
-        # print(input_node_features.shape)
-        # print("Output shape: ")
-        # print(output_node_features.shape)
-
         if input_node_features.shape[-1] == gat_output_node_features.shape[-1]:
             # This is fine we can just add these and return.
             gat_output_node_features += input_node_features

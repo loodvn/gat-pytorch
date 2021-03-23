@@ -30,7 +30,8 @@ data_config = {
         "l2_reg": 0.0, 
         "learning_rate": 0.005,
         "train_batch_size": 2,
-        "num_epochs": 1000
+        "num_epochs": 1000,
+        "const_attention": False
         # Do we need to add bias.
     },
     "Cora": {
@@ -44,11 +45,12 @@ data_config = {
         "head_output_features_per_layer": [1433, 8, 7],  
         "num_classes": 7,
         "add_skip_connection": False, 
-        "dropout": 0, #0.6,
+        "dropout": 0.6, #0.6,
         "l2_reg": 0.0005, 
         "learning_rate": 0.1, #0.005,
         "train_batch_size": 1,
-        "num_epochs": 1000
+        "num_epochs": 1000,
+        "const_attention": False
         # Do we need to add bias.
     },
     "Citeseer": {
@@ -66,7 +68,8 @@ data_config = {
         "l2_reg": 0.0005, 
         "learning_rate": 0.005,
         "train_batch_size": 1,
-        "num_epochs": 1000
+        "num_epochs": 1000,
+        "const_attention": False
         # Do we need to add bias.
     },
     "Pubmed": {
@@ -84,7 +87,8 @@ data_config = {
         "l2_reg": 0.001, 
         "learning_rate": 0.01,
         "train_batch_size": 1,
-        "num_epochs": 1000
+        "num_epochs": 1000,
+        "const_attention": False
         # Do we need to add bias.
     }
 }

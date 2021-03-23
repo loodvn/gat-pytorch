@@ -1,28 +1,17 @@
+''' Script for plotting the attention weights within a neighbourhood of a node. In this script with use python-iGraph as our graphing backend.
+The inspiration for this script is taken from https://github.com/gordicaleksa/pytorch-GAT/blob/main/The%20Annotated%20GAT%20(PPI).ipynb.
+The author (Aleksa Gordic) produces similar plots, using iGraph, but only for Cora and PPI, and only for several selective nodes. We extend
+this work by considering a random collection of degree 10 nodes, and investigate how the attention weights differ across these '''
+
 import os
 from typing import List
-
-# Visualization related imports
 import igraph as ig
-# Main computation libraries
 import numpy as np
-# Deep learning related imports
 import torch
 
-# from utils import GATCora, load_cora_data, train_cora_ow, prep_model_and_data_for_analysis
-
-# node_label_colour_map = {
-#     "Cora": {0: "red", 1: "blue", 2: "green", 3: "orange", 4: "yellow", 5: "pink", 6: "gray"},
-#     'Citeseer': {0: "red", 1: "blue", 2: "green", 3: "orange", 4: "yellow", 5: "pink"}
-#     ''
-# }
+# Colour map which is used for single label classification datasets to allow the viewer to see the different classes of the nodes.
 node_label_to_colour_map = {0: "red", 1: "blue", 2: "green", 3: "orange", 4: "yellow", 5: "pink", 6: "gray"}
-
 FIGURE_DIR_PATH = os.curdir + f'/figures/neighbourhood_plots/'
-
-
-#
-# Pick the node id you want to visualize the attention for!
-#
 
 def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
                                           edge_index: torch.Tensor,
@@ -32,16 +21,16 @@ def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
                                           head_num: int,
                                           show: bool,
                                           node_id=None):
+
     # These are randomly drawn nodes with degree 10. This is just for comparison purposes.
     node_list = {
-        "Cora": [48, 74, 133, 231, 482, 490, 695, 702, 711, 735, 833, 867],  # [2,  1986, 1701, 306, 1358],
+        "Cora": [48, 74, 133, 231, 482, 490, 695, 702, 711, 735, 833, 867],  
         "Citeseer": [567, 620, 709, 865, 1033, 1275, 1759, 1918, 1971, 1981, 2063, 2097],
         "Pubmed": [407, 555, 831, 872, 884, 912, 926, 966, 1008, 1033, 1098, 1169],
         "PPI": [240, 268, 298, 306, 313, 328, 331, 350, 358, 388]
     }
 
     if node_id is None:
-        # Interesting nodes for each dataset. 
         node_id_list = node_list.get(dataset_name)
     else:
         node_id_list = [node_id]
@@ -49,11 +38,6 @@ def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
     # Separate out the edge index into source and target nodes.
     source_nodes = edge_index[0]
     target_nodes = edge_index[1]
-
-    # Useful code atm - # TODO: Remove.
-    unique, counts = np.unique(target_nodes.numpy(), return_counts=True)
-    node_count = dict(zip(unique, counts))
-    ten_valued = [k for (k, v) in node_count.items() if v == 10]
 
     # Loop over all the nodes:
     for node_id in node_id_list:
@@ -100,7 +84,6 @@ def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
                                               'layer_{}_head_{}_node_{}.png'.format(layer_num, head_num, node_id)))
         else:
             # Save only.
-
             # Create intermediate directories if they do not exist. Could extract this out to a utils file.
             if not os.path.isdir(FIGURE_DIR_PATH):
                 os.mkdir(FIGURE_DIR_PATH)
