@@ -118,7 +118,7 @@ class GATLayer(nn.Module):
         attention_softmax_denom = torch.index_select(attention_softmax_denom, dim=0, index=target_edges)
         # normalise attention coeffs using a softmax operator.
         # Add an extra small number (epsilon) to prevent underflow / division by zero
-        normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-8)  # shape: (E, NH)
+        normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-12)  # shape: (E, NH)
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
 
         # Dropout (3): on normalized attention coefficients

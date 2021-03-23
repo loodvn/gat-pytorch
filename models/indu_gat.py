@@ -40,7 +40,7 @@ class induGAT(GATModel):
             aggregated_shape=first_attention[:, 0].size(),
             broadcast_back=True,
         )
-        print("new degrees shape", degrees.size())
+        # print("new degrees shape", degrees.size())
 
         num_layers = len(attention_list)
         attention_norm = torch.tensor(0.0, device=self.device)
@@ -51,8 +51,8 @@ class induGAT(GATModel):
 
             attention_minus_const = unnormalised_attention - 1.0
 
-            print(f"unnormalised_attention {i}", unnormalised_attention.detach().cpu(), unnormalised_attention.size())
-            print("attention_minus const", attention_minus_const.detach().cpu())
+            # print(f"unnormalised_attention {i}", unnormalised_attention.detach().cpu(), unnormalised_attention.size())
+            # print(f"attention_minus const {i}", attention_minus_const.detach().cpu())
             # Tensorboard must be passed in as a logger (can't use default logging for this)
             if self.logger is not None:
                 tensorboard: TensorBoardLogger = self.logger
