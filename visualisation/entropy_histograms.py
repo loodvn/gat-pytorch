@@ -1,6 +1,7 @@
+''' Visualization script for plotting the entropy histrograms of the distributions of the weights learnt by the attention mechanism '''
+
 import os
 from typing import List
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -99,14 +100,18 @@ def draw_entropy_histogram(edge_index: torch.Tensor,
 
             for node_id in range(0, num_nodes):
                 # Find all the places in which that node occurs as the target node, and use this as a filter for the attention weights
-                weights_for_node_output = attention_weights_for_head[target_nodes == node_id]
-                # These values sum to 1, so we can treat as a probablity dist and can therefore calculate the entropy on the values.
+
+                # OW / LVN - Change to see if we multiple by the degree whether this makes the vis any cleaner. 
+                # IDEA: Before we were accounting for the differnet degrees by using a histogram, which highlights any aggregated differences in the neighbourhood distributions.
+                # In this, we instead scale the weights by degree, meaning that initially we expected to see all 1's, because we have softmaxed over the degree, only to multiple by it.
+                # But, as the training continutes we should see this changes to a histogram more skewed towards 0.
+                weights_for_node_output = attention_weights_for_head[target_nodes == node_id][0]
+     
                 neighbourhood_entropy_list.append(entropy(weights_for_node_output, base=2))
                 # For a comparision we add the uniform distribution over the neigbours by assigning each weight to be 1 / (# of neighbours)
-                uniform_dist_entropy_list.append(
-                    entropy(np.ones(len(weights_for_node_output)) / len(weights_for_node_output), base=2))
+                uniform_dist_entropy_list.append(entropy(np.ones(len(weights_for_node_output)) / len(weights_for_node_output), base=2))
 
             # Call the attention mechanism. 
             create_attention_weight_dual_entropy_histogram(neighbourhood_entropy_list, uniform_dist_entropy_list,
-                                                           dataset_name=dataset_name, layer_num=layer, head_num=head,
+                                                           dataset_name=dataset_name+"1", layer_num=layer, head_num=head,
                                                            show=False, save=True, transductive=(dataset_name != 'PPI'))

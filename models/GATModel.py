@@ -160,7 +160,7 @@ class GATModel(pl.LightningModule):
                 x = F.elu(x)
             # If skip connection the perform the GAT layer and add this to the skip connection values.
             if self.add_skip_connection:
-                gat_layer_output, edge_index, layer_attention_weight = self.gat_model[i](x, edge_index, return_attention_coeffs)
+                gat_layer_output, (edge_index, layer_attention_weight) = self.gat_model[i](x, edge_index, return_attention_coeffs)
                 attention_weights_list.append(layer_attention_weight)
                 x = self.perform_skip_connection(
                     skip_connection_layer=self.gat_model[i+1], 
