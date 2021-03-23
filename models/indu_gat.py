@@ -43,19 +43,19 @@ class induGAT(GATModel):
 
         # Broadcast back up to (E,NH) so that we can calculate softmax by dividing each edge by denominator
         degrees = torch.index_select(degrees, dim=0, index=neighbourhood_indices)
-        print("new degrees shape", degrees.size())
+        print("new degrees shape", degrees.size().detach().cpu())
 
         unnormalised_attention = first_attention * degrees
 
-        print("unnormalised_attention", unnormalised_attention, unnormalised_attention.size())
+        print("unnormalised_attention", unnormalised_attention.detach().cpu(), unnormalised_attention.size().detach().cpu())
 
         attention_minus_const = unnormalised_attention - 1.0
 
-        print("attention_minus const", attention_minus_const)
+        print("attention_minus const", attention_minus_const.detach().cpu())
 
         loss = torch.norm(attention_minus_const, p=1)
 
-        print("loss = norm = ", loss)
+        print("loss = norm = ", loss.detach().cpu())
 
         self.log('train_loss', loss.detach().cpu(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
