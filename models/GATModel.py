@@ -121,7 +121,7 @@ class GATModel(pl.LightningModule):
                         bias=False
                     )
                     
-                layers.append(skip_layer)
+                skip_layers.append(skip_layer)
         
         # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
         self.gat_layer_list = nn.ModuleList(gat_layers)
