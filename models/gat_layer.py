@@ -33,8 +33,6 @@ class GATLayer(nn.Module):
         self.bias = bias
         self.const_attention = const_attention
 
-        self.attention_reg = 0
-
         # Weight matrix from paper
         self.W = nn.Linear(in_features=self.in_features, out_features=self.num_heads*self.out_features, bias=False)
         # Attentional mechanism from paper
@@ -146,15 +144,13 @@ class GATLayer(nn.Module):
         else:
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
         
-        print(self.normalised_attention_coeffs)
-        self.attention_reg_sum = torch.norm(normalised_attention_coeffs, p=1)
-        print(self.attention_reg_sum)
+        print("normalised_attention_coeffs", self.normalised_attention_coeffs)
         
         if self.bias:
             output_features += self.bias_param
 
         if return_attention_weights:
-            return output_features, (edge_index, self.normalised_attention_coeffs)
+            return output_features, (edge_index, normalised_attention_coeffs)
 
         return output_features
     

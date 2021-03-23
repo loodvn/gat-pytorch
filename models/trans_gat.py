@@ -1,4 +1,5 @@
 import torch
+from torch_geometric.data import DataLoader
 from torch_geometric.datasets import Planetoid
 
 from models.GATModel import GATModel
@@ -14,7 +15,7 @@ class transGAT(GATModel):
 
     def training_step(self, batch, batch_idx): 
 
-        out, edge_index, attention_weights_list, att_reg = self.forward_and_return_attention(batch, True)
+        out, edge_index, first_attention, att_reg = self.forward_and_return_attention(batch, True)
 
         # We can then add a norm over the attention weights.
         # attention_weights_reg_term = 0
@@ -23,11 +24,16 @@ class transGAT(GATModel):
         #     attention_weights_reg_term = attention_weights_reg_term + torch.norm(att_weights, p=1)
         print("Attention reg term: {}".format(att_reg * lambda_reg_term))
 
-        print(self.gat_model[0].attention_reg_sum)
+        print("first attention values: ", first_attention)
+        print("first attention norm: ", torch.norm(first_attention, p=2))
 
-        loss = self.criterion(out[batch.train_mask], batch.y[batch.train_mask]) + self.gat_model[0].attention_reg_sum 
+        loss: torch.Tensor = self.criterion(out[batch.train_mask], batch.y[batch.train_mask])# + torch.norm(first_attention, p=1)
         
-        print("loss value: {}".format(loss))
+        print("loss value:", loss)
+        # grad_fn = loss.grad_fn
+        # for i in range(10):
+        #     grad_fn = grad_fn.next_functions[0][0]
+        #     print("loss trace:", loss.grad_fn.next_functions[0][0])
         #+ lambda_reg_term * att_reg
         self.log('train_loss', loss, on_epoch=True, prog_bar=True,
                  logger=True)  # There's only one step in epoch so we log on epoch
@@ -37,10 +43,10 @@ class transGAT(GATModel):
     def on_after_backward(self):
         print("On backwards")
         # print(self.attention_reg_sum.grad)
-        # print(self.gat_model[0].W.weight.grad)
-        # print(self.gat_model[0].a.weight.grad)
-        # print(self.gat_model[0].normalised_attention_coeffs.grad)
-        print(self.gat_model[0].attention_reg_sum)
+        print("w: ", self.gat_model[0].W.weight.grad)
+        print("a:", self.gat_model[0].a.weight.grad)
+        print("normalised", self.gat_model[0].normalised_attention_coeffs.grad)
+        # print(self.gat_model[0].attention_reg_sum)
 
 
 
@@ -73,3 +79,30 @@ class transGAT(GATModel):
         self.train_ds = Planetoid(root='/tmp/' + self.dataset_name, name=self.dataset_name)
         self.val_ds = Planetoid(root='/tmp/' + self.dataset_name, name=self.dataset_name)
         self.test_ds = Planetoid(root='/tmp/' + self.dataset_name, name=self.dataset_name)
+
+
+if __name__ == "__main__":
+    import run_config
+    config = run_config.data_config['Cora']
+    model = transGAT(dataset="Cora", **config)
+
+    ds = Planetoid(root='/tmp/Cora', name="Cora")
+    dl = DataLoader(ds)
+    # Get 1 batch from Cora
+    batch = next(iter(dl))
+    print(batch)
+
+    # Get loss from trans_gat
+    loss = model.training_step(batch, 0)
+
+    loss.backward()
+
+    # Check normalised attention coeffs
+    print("normalised att: ", model.gat_model[0].normalised_attention_coeffs)
+
+    # Run through GATModel's forward func
+    print("running GATModel forward func")
+    out, edge_index, first_attention, att_reg = model.forward_and_return_attention(batch)
+
+
+
