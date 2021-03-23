@@ -25,7 +25,7 @@ data_config = {
         "heads_concat_per_layer": [True, True, False],
         "head_output_features_per_layer": [50, 256, 256, 121],
         "num_classes": 121,
-        "add_skip_connection": True, 
+        "add_skip_connection": [False, True, False],
         "dropout": 0.0,
         "l2_reg": 0.0, 
         "learning_rate": 0.005,

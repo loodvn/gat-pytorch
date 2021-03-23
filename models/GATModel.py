@@ -23,7 +23,7 @@ class GATModel(pl.LightningModule):
                  num_heads_per_layer: List[int],
                  heads_concat_per_layer: List[bool],
                  head_output_features_per_layer: List[int],
-                 add_skip_connection: bool,
+                 add_skip_connection: List[bool],
                  dropout: float,
                  l2_reg: float,
                  learning_rate: float,
@@ -74,7 +74,7 @@ class GATModel(pl.LightningModule):
         self.train_ds, self.val_ds, self.test_ds = None, None, None
         
         # Collect the layers into a list and then place together into a ModuleList
-        layers = []
+        gat_layers = []
         skip_layers = []
         for i in range(0, self.num_layers):
             # Depending on the implimentation layer type depends what we do.
@@ -102,11 +102,11 @@ class GATModel(pl.LightningModule):
             else:
                 raise ValueError(f"Incorrect layer type passed in: {self.layer_type}. Must be one of {list(LayerType)}")
 
-            layers.append(gat_layer)
+            gat_layers.append(gat_layer)
 
             # In either case if we need to add skip connections we can do this outside of the layer.
             # REASONING: IN ORDER TO KEEP THE SAME INTERFACE WE USE THE SKIP CONNECTIONS OUTSIDE OF THE GAT LAYER DEF.
-            if self.add_skip_connection:
+            if self.add_skip_connection[i]:
                 # If we concat then the output shape will be the number of heads. Otherwise we take a mean over each head and therefore can omit this.
                 if self.heads_concat_per_layer[i]:
                     skip_layer = Linear(
@@ -123,7 +123,7 @@ class GATModel(pl.LightningModule):
                 skip_layers.append(skip_layer)
         
         # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
-        self.gat_layer_list = nn.ModuleList(layers)
+        self.gat_layer_list = nn.ModuleList(gat_layers)
         self.skip_layer_list = nn.ModuleList(skip_layers)
         print("GAT Layers", self.gat_layer_list)
         print("Skip Layers", self.skip_layer_list)
@@ -136,6 +136,7 @@ class GATModel(pl.LightningModule):
         x, edge_index = data.x, data.edge_index
 
         num_layers = len(self.gat_layer_list)
+        skip_count = 0
 
         for i in range(0, num_layers):
             # Store layer input for skip connection
@@ -146,14 +147,15 @@ class GATModel(pl.LightningModule):
             x = self.gat_layer_list[i](x, edge_index)
 
             # Add a skip connection between the input and GAT layer output
-            if self.add_skip_connection:
+            if self.add_skip_connection[i]:
                 x = self.perform_skip_connection(
-                    skip_connection_layer=self.skip_layer_list[i],
+                    skip_connection_layer=self.skip_layer_list[skip_count],
                     input_node_features=layer_input,
                     gat_output_node_features=x,
                     head_concat=self.gat_layer_list[i].concat,
                     number_of_heads=self.gat_layer_list[i].num_heads,
                     output_node_features=self.gat_layer_list[i].out_features)
+                skip_count += 1
 
             # ELU between layers
             if i != num_layers - 1:
@@ -166,6 +168,7 @@ class GATModel(pl.LightningModule):
         attention_weights_list = []
 
         num_layers = len(self.gat_layer_list)
+        skip_count = 0
 
         for i in range(0, num_layers):
             # Store layer input for skip connection
@@ -177,14 +180,15 @@ class GATModel(pl.LightningModule):
             attention_weights_list.append(layer_attention_weight)
 
             # Add a skip connection between the input and GAT layer output
-            if self.add_skip_connection:
+            if self.add_skip_connection[i]:
                 x = self.perform_skip_connection(
-                    skip_connection_layer=self.skip_layer_list[i],
+                    skip_connection_layer=self.skip_layer_list[skip_count],
                     input_node_features=layer_input,
                     gat_output_node_features=x,
                     head_concat=self.gat_layer_list[i].concat,
                     number_of_heads=self.gat_layer_list[i].num_heads,
                     output_node_features=self.gat_layer_list[i].out_features)
+                skip_count += 1
 
             # ELU between layers
             if i != num_layers - 1:
