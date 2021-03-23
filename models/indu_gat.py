@@ -1,4 +1,5 @@
 import torch
+from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.metrics import f1_score
 from torch.nn import BCEWithLogitsLoss
 from torch_geometric.data import DataLoader
@@ -51,6 +52,11 @@ class induGAT(GATModel):
         print("unnormalised_attention", unnormalised_attention.detach().cpu(), unnormalised_attention.size())
 
         attention_minus_const = unnormalised_attention - 1.0
+
+        # Tensorboard must be passed in as a logger (can't use default logging for this)
+        if self.logger is not None:
+            tensorboard: TensorBoardLogger = self.logger
+            tensorboard.experiment.add_histogram("attention_minus_const", attention_minus_const.detach().cpu())
 
         print("attention_minus const", attention_minus_const.detach().cpu())
 
