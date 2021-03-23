@@ -11,56 +11,62 @@ from models.GATModel import GATModel
 # pl.seed_everything(42)
 
 # OW test
-# Addition 
+# Addition
+from models.utils import sum_over_neighbourhood, explicit_broadcast
 
 
 class induGAT(GATModel):
     def __init__(self, attention_penalty=0.001, **config):
         super().__init__(**config)
-        self.criterion = BCEWithLogitsLoss(reduction='mean')
+        self.loss_fn = BCEWithLogitsLoss(reduction='mean')
         self.attention_penalty = attention_penalty
 
     def training_step(self, batch, batch_idx):
 
         # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
-        out, edge_index, first_attention, _ = self.forward_and_return_attention(batch, return_attention_coeffs=True)  # attention_weights_list
+        out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_coeffs=True)  # attention_weights_list
 
-        loss_fn = BCEWithLogitsLoss(reduction='mean')
-        loss = loss_fn(out, batch.y)
+        loss = self.loss_fn(out, batch.y)
 
         # Penalise deviation from constant attention (const-GAT), for analysing the gain of attention
-
-        # Copied gat_layer.aggregate_neighbourhood below
         neighbourhood_indices = edge_index[1]
 
-        # Create a new tensor in which to store the aggregated values. Created using the values tensor, so that the dtype and device match
-        degrees = first_attention.new_zeros(first_attention.size())
+        first_attention = attention_list[0]
+        # Get degrees, shaped as (E,), so that we can reshape for every layer
 
-        # scatter_add requires target to match src's shape, e.g. needs to be of size (E, NH), not (E,)
-        target_idx = neighbourhood_indices.unsqueeze(-1).expand_as(first_attention)
-
-        # Sum all elements according to the neighbourhood index. e.g. index=[0, 0, 0, 1, 1, 2], src=[1, 2, 3, 4, 5, 6] -> [1+2+3, 4+5, 6]
-        degrees.scatter_add_(dim=0, index=target_idx, src=torch.ones_like(first_attention))  # shape: (E,NH) -> (N,NH)
-
-        # Broadcast back up to (E,NH) so that we can calculate softmax by dividing each edge by denominator
-        degrees = torch.index_select(degrees, dim=0, index=neighbourhood_indices)
+        degrees = sum_over_neighbourhood(
+            torch.ones_like(first_attention[:, 0]),
+            neighbourhood_indices=neighbourhood_indices,
+            aggregated_shape=first_attention[:, 0].size(),
+            broadcast_back=True,
+        )
         print("new degrees shape", degrees.size())
 
-        unnormalised_attention = first_attention * degrees
+        num_layers = len(attention_list)
+        attention_norm = torch.tensor(0.0, device=self.device)
+        # Calculate attention penalty for each layer (can parallelise?)
+        for i in range(num_layers):
+            tmp_degrees = explicit_broadcast(degrees, attention_list[i])
+            unnormalised_attention = attention_list[i] * tmp_degrees
 
-        print("unnormalised_attention", unnormalised_attention.detach().cpu(), unnormalised_attention.size())
+            attention_minus_const = unnormalised_attention - 1.0
 
-        attention_minus_const = unnormalised_attention - 1.0
+            print(f"unnormalised_attention {i}", unnormalised_attention.detach().cpu(), unnormalised_attention.size())
+            print("attention_minus const", attention_minus_const.detach().cpu())
+            # Tensorboard must be passed in as a logger (can't use default logging for this)
+            if self.logger is not None:
+                tensorboard: TensorBoardLogger = self.logger
+                tensorboard.experiment.add_histogram(f"unnormalised_attention_layer_{i}", unnormalised_attention.detach().cpu())
+                tensorboard.experiment.add_histogram(f"attention_minus_const_layer_{i}", attention_minus_const.detach().cpu())
 
-        # Tensorboard must be passed in as a logger (can't use default logging for this)
-        if self.logger is not None:
-            tensorboard: TensorBoardLogger = self.logger
-            tensorboard.experiment.add_histogram("attention_minus_const", attention_minus_const.detach().cpu())
-            tensorboard.experiment.add_histogram("unnormalised_attention", unnormalised_attention.detach().cpu())
+            norm_i = torch.norm(attention_minus_const, p=1)
+            attention_norm = attention_norm + norm_i
 
-        print("attention_minus const", attention_minus_const.detach().cpu())
+        print("attention norm total:", attention_norm.detach().cpu())
+        attention_norm = attention_norm / torch.tensor(num_layers, device=self.device)
+        print("attention norm / layers:", attention_norm.detach().cpu())
 
-        norm_loss = self.attention_penalty * torch.norm(attention_minus_const, p=1)
+        norm_loss = self.attention_penalty * attention_norm
         print("bce loss: ", loss.detach().cpu())
         print(f"norm loss with lambda = {self.attention_penalty}", norm_loss.detach().cpu())
         self.log("train_norm_loss", norm_loss.detach().cpu())
@@ -75,17 +81,17 @@ class induGAT(GATModel):
 
         return loss
 
-    def on_after_backward(self):
-        print("On backwards")
-        # print(self.attention_reg_sum.grad)
-        # print(self.gat_model[0].W.weight.grad)
-        # print(self.gat_model[0].a.weight.grad)
-        # print(self.gat_model[0].normalised_attention_coeffs.grad)
+    # Useful for checking if gradients are flowing
+    # def on_after_backward(self):
+    #     print("On backwards")
+    #     # print(self.attention_reg_sum.grad)
+    #     # print(self.gat_model[0].W.weight.grad)
+    #     # print(self.gat_model[0].a.weight.grad)
+    #     # print(self.gat_model[0].normalised_attention_coeffs.grad)
 
     def validation_step(self, batch, batch_idx):
         out = self(batch)
-        loss_fn = BCEWithLogitsLoss(reduction='mean') 
-        loss = loss_fn(out, batch.y)
+        loss = self.loss_fn(out, batch.y)
         self.log('val_loss', loss.detach().cpu(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         f1 = f1_score(y_pred=out.detach().cpu().numpy() > 0, y_true=batch.y.detach().cpu().numpy(), average="micro")
@@ -129,7 +135,7 @@ if __name__ == "__main__":
     #
     # # Check normalised attention coeffs
     # print("normalised att: ", model.gat_model[0].normalised_attention_coeffs)
-    print("W grad: ", model.gat_model[0].W.weight.grad)
+    print("W grad: ", model.gat_layer_list[0].W.weight.grad)
     #
     # # Run through GATModel's forward func
     # print("running GATModel forward func")

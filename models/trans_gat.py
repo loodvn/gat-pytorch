@@ -42,9 +42,9 @@ class transGAT(GATModel):
     def on_after_backward(self):
         print("On backwards")
         # print(self.attention_reg_sum.grad)
-        print("w: ", self.gat_model[0].W.weight.grad)
-        print("a:", self.gat_model[0].a.weight.grad)
-        print("normalised", self.gat_model[0].normalised_attention_coeffs.grad)
+        print("w: ", self.gat_layer_list[0].W.weight.grad)
+        print("a:", self.gat_layer_list[0].a.weight.grad)
+        print("normalised", self.gat_layer_list[0].normalised_attention_coeffs.grad)
         # print(self.gat_model[0].attention_reg_sum)
 
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     loss.backward()
 
     # Check normalised attention coeffs
-    print("normalised att: ", model.gat_model[0].normalised_attention_coeffs)
+    print("normalised att: ", model.gat_layer_list[0].normalised_attention_coeffs)
 
     # Run through GATModel's forward func
     print("running GATModel forward func")

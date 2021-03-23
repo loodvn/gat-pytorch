@@ -71,8 +71,9 @@ class GATModel(pl.LightningModule):
 
         self.train_ds, self.val_ds, self.test_ds = None, None, None
         
-        # Collect the layers into a list and then place together into a Sequential model.
+        # Collect the layers into a list and then place together into a ModuleList
         layers = []
+        skip_layers = []
         for i in range(0, self.num_layers):
             # Depending on the implimentation layer type depends what we do.
             if self.layer_type == LayerType.GATLayer:
@@ -118,11 +119,13 @@ class GATModel(pl.LightningModule):
                         out_features=self.num_heads_per_layer[i+1] * self.head_output_features_per_layer[i+1],
                         bias=False
                     )
-                layers.append(skip_layer)
+                skip_layers.append(skip_layer)
         
         # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
-        self.gat_model = nn.ModuleList(layers)
-        print(self.gat_model)
+        self.gat_layer_list = nn.ModuleList(layers)
+        self.skip_layer_list = nn.ModuleList(skip_layers)
+        print("GAT Layers", self.gat_layer_list)
+        print("Skip Layers", self.skip_layer_list)
 
     def reset_parameters(self):
         self.gat1.reset_parameters()
@@ -130,57 +133,63 @@ class GATModel(pl.LightningModule):
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
-        self.layer_step = 2 if self.add_skip_connection else 1
 
-        for i in range(0, len(self.gat_model), self.layer_step):
-            if i != 0:
-                x = F.elu(x)
-            # If skip connection the perform the GAT layer and add this to the skip connection values.
+        num_layers = len(self.gat_layer_list)
+
+        for i in range(0, num_layers):
+            # Store layer input for skip connection
+            layer_input = x
+
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            # Get outputs from GAT layer
+            x, (edge_index, layer_attention_weight) = self.gat_layer_list[i](x, edge_index)
+
+            # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection:
                 x = self.perform_skip_connection(
-                    skip_connection_layer=self.gat_model[i+1], 
-                    input_node_features=x, 
-                    gat_output_node_features=self.gat_model[i](x, edge_index), 
-                    head_concat=self.gat_model[i].concat, 
-                    number_of_heads=self.gat_model[i].num_heads, 
-                    output_node_features=self.gat_model[i].out_features)
-            else:
-                x = F.dropout(x, p=self.dropout, training=self.training)
-                x = self.gat_model[i](x, edge_index)
+                    skip_connection_layer=self.skip_layer_list[i],
+                    input_node_features=layer_input,
+                    gat_output_node_features=x,
+                    head_concat=self.gat_layer_list[i].concat,
+                    number_of_heads=self.gat_layer_list[i].num_heads,
+                    output_node_features=self.gat_layer_list[i].out_features)
+
+            # ELU between layers
+            if i != num_layers - 1:
+                x = F.elu(x)
+
         return x
 
     def forward_and_return_attention(self, data, return_attention_coeffs=True):
         x, edge_index = data.x, data.edge_index
-        layer_step = 2 if self.add_skip_connection else 1
         attention_weights_list = []
-        first_attention = None
 
-        for i in range(0, len(self.gat_model), layer_step):
-            if i != 0:
-                x = F.elu(x)
-            # If skip connection the perform the GAT layer and add this to the skip connection values.
+        num_layers = len(self.gat_layer_list)
+
+        for i in range(0, num_layers):
+            # Store layer input for skip connection
+            layer_input = x
+
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            # Get outputs from GAT layer
+            x, (edge_index, layer_attention_weight) = self.gat_layer_list[i](x, edge_index, return_attention_coeffs)
+            attention_weights_list.append(layer_attention_weight)
+
+            # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection:
-                gat_layer_output, (edge_index, layer_attention_weight) = self.gat_model[i](x, edge_index, return_attention_coeffs)
-
-                attention_weights_list.append(layer_attention_weight)
-
                 x = self.perform_skip_connection(
-                    skip_connection_layer=self.gat_model[i+1], 
-                    input_node_features=x, 
-                    gat_output_node_features=gat_layer_output, 
-                    head_concat=self.gat_model[i].concat,
-                    number_of_heads=self.gat_model[i].num_heads, 
-                    output_node_features=self.gat_model[i].out_features)
-            else:
-                x = F.dropout(x, p=self.dropout, training=self.training)
-                x, (edge_index, layer_attention_weight) = self.gat_model[i](x, edge_index, return_attention_coeffs)
-                attention_weights_list.append(layer_attention_weight)
+                    skip_connection_layer=self.skip_layer_list[i],
+                    input_node_features=layer_input,
+                    gat_output_node_features=x,
+                    head_concat=self.gat_layer_list[i].concat,
+                    number_of_heads=self.gat_layer_list[i].num_heads,
+                    output_node_features=self.gat_layer_list[i].out_features)
 
-            if i == 0:
-                print("tmp adding first attention")
-                first_attention = layer_attention_weight
+            # ELU between layers
+            if i != num_layers - 1:
+                x = F.elu(x)
 
-        return x, edge_index, first_attention
+        return x, edge_index, attention_weights_list
 
     def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat, number_of_heads, output_node_features):
         # print("Layer: {}".format(layer))
