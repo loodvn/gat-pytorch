@@ -69,7 +69,6 @@ class GATModel(pl.LightningModule):
         self.head_output_features_per_layer = head_output_features_per_layer
         self.heads_concat_per_layer = heads_concat_per_layer
 
-        self.attention_reg_sum = torch.tensor(0)
         self.train_ds, self.val_ds, self.test_ds = None, None, None
         
         # Collect the layers into a list and then place together into a Sequential model.
@@ -163,8 +162,6 @@ class GATModel(pl.LightningModule):
             if self.add_skip_connection:
                 gat_layer_output, (edge_index, layer_attention_weight) = self.gat_model[i](x, edge_index, return_attention_coeffs)
 
-                self.attention_reg_sum = self.attention_reg_sum + torch.norm(layer_attention_weight, p=1)
-
                 attention_weights_list.append(layer_attention_weight)
 
                 x = self.perform_skip_connection(
@@ -177,14 +174,13 @@ class GATModel(pl.LightningModule):
             else:
                 x = F.dropout(x, p=self.dropout, training=self.training)
                 x, (edge_index, layer_attention_weight) = self.gat_model[i](x, edge_index, return_attention_coeffs)
-                self.attention_reg_sum = self.attention_reg_sum + torch.norm(layer_attention_weight, p=2)
                 attention_weights_list.append(layer_attention_weight)
 
             if i == 0:
                 print("tmp adding first attention")
                 first_attention = layer_attention_weight
 
-        return x, edge_index, first_attention, self.attention_reg_sum  # attention_weights_list,
+        return x, edge_index, first_attention
 
     def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat, number_of_heads, output_node_features):
         # print("Layer: {}".format(layer))

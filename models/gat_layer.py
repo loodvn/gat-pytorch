@@ -100,7 +100,7 @@ class GATLayer(nn.Module):
         else:
             # Setting to constant attention, see what happens
             # If attention_weights = 0, then e^0 = 1 so the exponentiated attention weights will = 1
-            attention_weights = torch.zeros((E, self.num_heads))
+            attention_weights = torch.zeros((E, self.num_heads)).to(self.device)
 
 
         # TODO can probably multiply logits with representations and then denominator afterwards?

@@ -15,13 +15,12 @@ from models.GATModel import GATModel
 
 
 class induGAT(GATModel):
-    def __init__(self, **config):    
+    def __init__(self, attention_penalty=0.001, **config):
         super().__init__(**config)
         self.criterion = BCEWithLogitsLoss(reduction='mean')
+        self.attention_penalty = attention_penalty
 
     def training_step(self, batch, batch_idx):
-        
-        l1_lambda = 0.001
 
         # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
         out, edge_index, first_attention, _ = self.forward_and_return_attention(batch, return_attention_coeffs=True)  # attention_weights_list
@@ -57,12 +56,13 @@ class induGAT(GATModel):
         if self.logger is not None:
             tensorboard: TensorBoardLogger = self.logger
             tensorboard.experiment.add_histogram("attention_minus_const", attention_minus_const.detach().cpu())
+            tensorboard.experiment.add_histogram("unnormalised_attention", unnormalised_attention.detach().cpu())
 
         print("attention_minus const", attention_minus_const.detach().cpu())
 
-        norm_loss = l1_lambda * torch.norm(attention_minus_const, p=1)
+        norm_loss = self.attention_penalty * torch.norm(attention_minus_const, p=1)
         print("bce loss: ", loss.detach().cpu())
-        print(f"norm loss with lambda = {l1_lambda}", norm_loss.detach().cpu())
+        print(f"norm loss with lambda = {self.attention_penalty}", norm_loss.detach().cpu())
         self.log("train_norm_loss", norm_loss.detach().cpu())
 
         loss = loss + norm_loss
