@@ -70,7 +70,6 @@ class GATModel(pl.LightningModule):
         self.heads_concat_per_layer = heads_concat_per_layer
 
         self.attention_reg_sum = torch.tensor(0)
-
         self.train_ds, self.val_ds, self.test_ds = None, None, None
         
         # Collect the layers into a list and then place together into a Sequential model.

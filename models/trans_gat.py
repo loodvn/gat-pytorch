@@ -28,7 +28,6 @@ class transGAT(GATModel):
         print("first attention norm: ", torch.norm(first_attention, p=2))
 
         loss: torch.Tensor = self.criterion(out[batch.train_mask], batch.y[batch.train_mask])# + torch.norm(first_attention, p=1)
-        
         print("loss value:", loss)
         # grad_fn = loss.grad_fn
         # for i in range(10):

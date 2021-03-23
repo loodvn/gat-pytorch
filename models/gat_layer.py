@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-
 from .utils import add_remaining_self_loops
 
 
@@ -125,6 +124,8 @@ class GATLayer(nn.Module):
         # Dropout (3): on normalized attention coefficients
         if self.dropout > 0:
             normalised_attention_coeffs = self.dropout_layer(normalised_attention_coeffs)
+
+
 
         # Inside parenthesis of Equation (4):
         # Multiply all nodes in neighbourhood (with incoming edges) by attention coefficients
