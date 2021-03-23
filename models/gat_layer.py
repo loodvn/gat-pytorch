@@ -143,8 +143,6 @@ class GATLayer(nn.Module):
         else:
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
         
-        print("normalised_attention_coeffs", self.normalised_attention_coeffs.detach().cpu())
-        
         if self.bias:
             output_features += self.bias_param
 
@@ -161,6 +159,7 @@ class GATLayer(nn.Module):
         if self.bias:
             nn.init.zeros_(self.bias_param)
         # Can also init bias=0 if on
+
 
 if __name__ == "__main__":
     print("Debugging: Playing with Cora dataset")

@@ -16,7 +16,7 @@ from models.utils import sum_over_neighbourhood, explicit_broadcast
 
 
 class induGAT(GATModel):
-    def __init__(self, attention_penalty=0.001, **config):
+    def __init__(self, attention_penalty=0.0, **config):
         super().__init__(**config)
         self.loss_fn = BCEWithLogitsLoss(reduction='mean')
         self.attention_penalty = attention_penalty
@@ -33,12 +33,11 @@ class induGAT(GATModel):
         self.log("train_attention_norm", attention_norm.detach().cpu())
 
         norm_loss = self.attention_penalty * attention_norm
-        print("bce loss: ", loss.detach().cpu())
-        print(f"norm loss with lambda = {self.attention_penalty}", norm_loss.detach().cpu())
+        # print("bce loss: ", loss.detach().cpu())
+        # print(f"norm loss with lambda = {self.attention_penalty}", norm_loss.detach().cpu())
         self.log("train_norm_loss", norm_loss.detach().cpu())
 
         loss = loss + norm_loss
-        print("total_loss", loss.detach().cpu())
 
         self.log('train_loss', loss.detach().cpu(), prog_bar=True, logger=True)
         
@@ -117,9 +116,9 @@ class induGAT(GATModel):
             norm_i = norm_i / neighbourhood_indices.size(0)  # Can also get average norm per edge
             attention_norm = attention_norm + norm_i
 
-        print("attention norm total:", attention_norm.detach().cpu())
+        # print("attention norm total:", attention_norm.detach().cpu())
         attention_norm = attention_norm / torch.tensor(num_layers, device=self.device)
-        print("attention norm / layers:", attention_norm.detach().cpu())
+        # print("attention norm / layers:", attention_norm.detach().cpu())
 
         return attention_norm
 
@@ -142,10 +141,6 @@ if __name__ == "__main__":
 
     loss.backward()
 
-    #
-    # # Check normalised attention coeffs
-    # print("normalised att: ", model.gat_model[0].normalised_attention_coeffs)
-    print("W grad: ", model.gat_layer_list[0].W.weight.grad)
     #
     # # Run through GATModel's forward func
     # print("running GATModel forward func")

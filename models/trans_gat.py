@@ -11,7 +11,7 @@ from models.utils import sum_over_neighbourhood, explicit_broadcast
 
 
 class transGAT(GATModel):
-    def __init__(self, attention_reward=0.001, **config):
+    def __init__(self, attention_reward=0.0, **config):
         super().__init__(**config)
         self.loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
         self.attention_reward = attention_reward
@@ -25,11 +25,10 @@ class transGAT(GATModel):
         self.log("train_attention_norm", attention_norm.detach().cpu())
 
         norm_loss = self.attention_reward * attention_norm
-        print(f"norm loss with lambda = {self.attention_penalty}", norm_loss.detach().cpu())
         self.log("train_norm_loss", norm_loss.detach().cpu())
 
-        # Negative penalty (/reward) on the attention norm to encourage using attention mechanism
-        loss = self.loss_fn(out[batch.train_mask], batch.y[batch.train_mask]) - norm_loss
+        # Try negative penalty (/reward) on the attention norm to encourage using attention mechanism
+        loss = self.loss_fn(out[batch.train_mask], batch.y[batch.train_mask]) + norm_loss
 
         self.log('train_loss', loss, on_epoch=True, prog_bar=True, logger=True)  # There's only one step in epoch so we log on epoch
         return loss
@@ -115,9 +114,9 @@ class transGAT(GATModel):
             norm_i = norm_i / neighbourhood_indices.size(0)  # Can also get average norm per edge
             attention_norm = attention_norm + norm_i
 
-        print("attention norm total:", attention_norm.detach().cpu())
+        # print("attention norm total:", attention_norm.detach().cpu())
         attention_norm = attention_norm / torch.tensor(num_layers, device=self.device)
-        print("attention norm / layers:", attention_norm.detach().cpu())
+        # print("attention norm / layers:", attention_norm.detach().cpu())
 
         return attention_norm
 
