@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-
 from .utils import add_remaining_self_loops
 
 
@@ -33,7 +32,7 @@ class GATLayer(nn.Module):
         self.bias = bias
         self.const_attention = const_attention
 
-        self.attention_reg = 0
+        self.attention_reg_sum = torch.tensor(0.0, requires_grad=True)
 
         # Weight matrix from paper
         self.W = nn.Linear(in_features=self.in_features, out_features=self.num_heads*self.out_features, bias=False)
@@ -49,7 +48,7 @@ class GATLayer(nn.Module):
         if self.bias:
             self.bias_param = nn.Parameter(torch.Tensor(self.num_heads * self.out_features))
 
-        self.normalised_attention_coeffs = None
+        # self.normalised_attention_coeffs = tens
         self.reset_parameters()
 
     def forward(self, x, edge_index, return_attention_weights=False):
@@ -123,10 +122,13 @@ class GATLayer(nn.Module):
         # Add an extra small number (epsilon) to prevent underflow / division by zero
         normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-8)  # shape: (E, NH)
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
+        self.attention_reg_sum = torch.norm(self.normalised_attention_coeffs, p=1)
 
         # Dropout (3): on normalized attention coefficients
         if self.dropout > 0:
             normalised_attention_coeffs = self.dropout_layer(normalised_attention_coeffs)
+
+        
 
         # Inside parenthesis of Equation (4):
         # Multiply all nodes in neighbourhood (with incoming edges) by attention coefficients
@@ -145,11 +147,7 @@ class GATLayer(nn.Module):
             output_features = output_features.view(-1, self.num_heads*self.out_features)  # self.num_heads*self.out_features
         else:
             output_features = torch.mean(output_features, dim=1)  # Aggregate over the different heads
-        
-        print(self.normalised_attention_coeffs)
-        self.attention_reg_sum = torch.norm(normalised_attention_coeffs, p=1)
-        print(self.attention_reg_sum)
-        
+                
         if self.bias:
             output_features += self.bias_param
 

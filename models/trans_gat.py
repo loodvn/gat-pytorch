@@ -23,11 +23,14 @@ class transGAT(GATModel):
         #     attention_weights_reg_term = attention_weights_reg_term + torch.norm(att_weights, p=1)
         print("Attention reg term: {}".format(att_reg * lambda_reg_term))
 
+        print("Attention Reg Grad: ")
         print(self.gat_model[0].attention_reg_sum)
+        print("normalised_attention_coeffs grad")
+        print(self.gat_model[0].normalised_attention_coeffs)
 
         loss = self.criterion(out[batch.train_mask], batch.y[batch.train_mask]) + self.gat_model[0].attention_reg_sum 
-        
         print("loss value: {}".format(loss))
+
         #+ lambda_reg_term * att_reg
         self.log('train_loss', loss, on_epoch=True, prog_bar=True,
                  logger=True)  # There's only one step in epoch so we log on epoch
