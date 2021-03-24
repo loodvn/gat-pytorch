@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 from torch.nn import BCEWithLogitsLoss
 from torch_geometric.data import DataLoader
 from torch_geometric.datasets import PPI
@@ -62,7 +63,9 @@ class induGAT(GATModel):
                     tensorboard.experiment.add_histogram(f"gat_weight_layer{i}", self.gat_layer_list[i].W.weight.grad)
                     tensorboard.experiment.add_histogram(f"attention_weight_layer{i}", self.gat_layer_list[i].a.weight.grad)
                     if len(self.skip_layer_list) > skip_count:
-                        tensorboard.experiment.add_histogram(f"skip_weight_layer{i}", self.skip_layer_list[skip_count].weight.grad)
+                        skip_layer = self.skip_layer_list[skip_count]
+                        if isinstance(skip_layer, torch.nn.Linear):
+                            tensorboard.experiment.add_histogram(f"skip_weight_layer{i}", skip_layer.weight.grad)
                         skip_count += 1
 
     #     print("On backwards")

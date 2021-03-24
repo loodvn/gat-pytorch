@@ -117,7 +117,7 @@ class GATModel(pl.LightningModule):
                     # Add a linear projection from NH(l-1) * F_OUT(l-1) to F_OUT(l).
                     skip_out = self.head_output_features_per_layer[i+1]
 
-                if skip_in != skip_out:
+                if skip_in == skip_out:
                     skip_layer = nn.Identity()
                 else:
                     skip_layer = nn.Linear(in_features=skip_in, out_features=skip_out, bias=False)
