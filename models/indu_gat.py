@@ -54,14 +54,16 @@ class induGAT(GATModel):
     # Useful for checking if gradients are flowing
     def on_after_backward(self):
         # Log gradient histograms/distributions
-        if self.log_grads:
+        if self.track_grads:
             if self.logger is not None:
                 tensorboard: TensorBoardLogger = self.logger
                 skip_count = 0
                 for i in range(len(self.gat_layer_list)):
-                    tensorboard.experiment.add_histogram(f"gat_layer_weight{i}", self.gat_layer_list[i].weight.grad)
-                    tensorboard.experiment.add_histogram(f"skip_layer_weight{i}", self.skip_layer_list[skip_count].weight.grad)
-                    skip_count += 1
+                    tensorboard.experiment.add_histogram(f"gat_weight_layer{i}", self.gat_layer_list[i].W.weight.grad)
+                    tensorboard.experiment.add_histogram(f"attention_weight_layer{i}", self.gat_layer_list[i].a.weight.grad)
+                    if len(self.skip_layer_list) > skip_count:
+                        tensorboard.experiment.add_histogram(f"skip_weight_layer{i}", self.skip_layer_list[skip_count].weight.grad)
+                        skip_count += 1
 
     #     print("On backwards")
     #     # print(self.attention_reg_sum.grad)
