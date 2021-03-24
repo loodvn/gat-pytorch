@@ -187,7 +187,6 @@ class GATModel(pl.LightningModule):
             # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection[i]:
                 # Use linear projection if layer_input.dim() != x.dim(); otherwise skip_layer == nn.Identity()
-                print()
                 skip_output = self.skip_layer_list[skip_count](layer_input)
                 skip_count += 1
                 if self.heads_concat_per_layer[i]:
