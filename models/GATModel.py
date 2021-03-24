@@ -114,8 +114,9 @@ class GATModel(pl.LightningModule):
                     # If concatenating: add a linear projection from NH(l-1) * F_OUT(l-1) -> NH(l) * F_OUT(l)
                     skip_out = self.num_heads_per_layer[i + 1] * self.head_output_features_per_layer[i + 1]
                 else:
-                    # Add a linear projection from NH(l-1) * F_OUT(l-1) to F_OUT(l).
-                    skip_out = self.head_output_features_per_layer[i+1]
+                    # Add a linear projection from NH(l-1) * F_OUT(l-1) to NH(l) * F_OUT(l).
+                    # TODO we can actually just use F_OUT, perhaps too much capacity
+                    skip_out = self.num_heads_per_layer[i + 1] * self.head_output_features_per_layer[i + 1]
 
                 if skip_in == skip_out:
                     skip_layer = nn.Identity()
@@ -186,6 +187,7 @@ class GATModel(pl.LightningModule):
             # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection[i]:
                 # Use linear projection if layer_input.dim() != x.dim(); otherwise skip_layer == nn.Identity()
+                print()
                 skip_output = self.skip_layer_list[skip_count](layer_input)
                 skip_count += 1
                 if self.heads_concat_per_layer[i]:
