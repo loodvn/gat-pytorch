@@ -31,6 +31,7 @@ class GATLayer(nn.Module):
         self.add_self_loops = add_self_loops
         self.bias = bias
         self.const_attention = const_attention
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         # Weight matrix from paper
         self.W = nn.Linear(in_features=self.in_features, out_features=self.num_heads*self.out_features, bias=False)
