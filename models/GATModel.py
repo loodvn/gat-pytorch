@@ -106,14 +106,16 @@ class GATModel(pl.LightningModule):
 
             # In either case if we need to add skip connections we can do this outside of the layer.
             # REASONING: IN ORDER TO KEEP THE SAME INTERFACE WE USE THE SKIP CONNECTIONS OUTSIDE OF THE GAT LAYER DEF.
+            # These linear projections add a lot of extra capacity - basically the same size as the weight matrix W.
             if self.add_skip_connection[i]:
-                # If we concat then the output shape will be NH * F_OUT. Otherwise we take a mean over each head and the output shape is just F_OUT.
+                # If concatenating: add a linear projection from NH(l-1) * F_OUT(l-1) -> NH(l) * F_OUT(l)
                 if self.heads_concat_per_layer[i]:
                     skip_layer = Linear(
                         in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
                         out_features=self.num_heads_per_layer[i+1] * self.head_output_features_per_layer[i+1],
                         bias=False
                     )
+                # Add a linear projection from output[i] to output[i+1].
                 else:
                     skip_layer = Linear(
                         in_features=self.head_output_features_per_layer[i],

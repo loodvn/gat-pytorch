@@ -55,7 +55,6 @@ if __name__ == "__main__":
                                                                                      return_attention_weights=True)
         # Detach tensors so that we can use them
         attention_list = [att.detach().cpu() for att in attention_list]
-        print("debug: attention_list", attention_list)
 
         if vis_type == "Entropy":
             draw_entropy_histogram(edge_index=edge_index, attention_weights=attention_list, num_nodes=batch.x.size()[0],

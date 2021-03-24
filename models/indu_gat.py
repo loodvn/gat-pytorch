@@ -17,10 +17,11 @@ from models.utils import sum_over_neighbourhood, explicit_broadcast
 
 
 class induGAT(GATModel):
-    def __init__(self, attention_penalty=0.0, **config):
+    def __init__(self, attention_penalty=0.0, track_grads=False, **config):
         super().__init__(**config)
         self.loss_fn = BCEWithLogitsLoss(reduction='mean')
         self.attention_penalty = attention_penalty
+        self.track_grads = track_grads
 
     def training_step(self, batch, batch_idx):
         # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
@@ -38,7 +39,9 @@ class induGAT(GATModel):
         # print(f"norm loss with lambda = {self.attention_penalty}", norm_loss.detach().cpu())
         self.log("train_norm_loss", norm_loss.detach().cpu())
 
-        loss = loss + norm_loss
+        # Only add norm if we have a positive attention penalty - might cause weirdness (TM) otherwise
+        if self.attention_penalty != 0.0:
+            loss = loss + norm_loss
         print("Total Loss: {}".format(loss.detach().cpu()))
 
         self.log('train_loss', loss.detach().cpu(), prog_bar=True, logger=True)
@@ -49,7 +52,17 @@ class induGAT(GATModel):
         return loss
 
     # Useful for checking if gradients are flowing
-    # def on_after_backward(self):
+    def on_after_backward(self):
+        # Log gradient histograms/distributions
+        if self.log_grads:
+            if self.logger is not None:
+                tensorboard: TensorBoardLogger = self.logger
+                skip_count = 0
+                for i in range(len(self.gat_layer_list)):
+                    tensorboard.experiment.add_histogram(f"gat_layer_weight{i}", self.gat_layer_list[i].weight.grad)
+                    tensorboard.experiment.add_histogram(f"skip_layer_weight{i}", self.skip_layer_list[skip_count].weight.grad)
+                    skip_count += 1
+
     #     print("On backwards")
     #     # print(self.attention_reg_sum.grad)
     #     # print(self.gat_model[0].W.weight.grad)
@@ -121,8 +134,8 @@ class induGAT(GATModel):
         # print("attention norm total:", attention_norm.detach().cpu())
         attention_norm = attention_norm / torch.tensor(num_layers, device=self.device)
 
-        # CLIP GRAD.
-        attention_norm = torch.minimum(attention_norm, torch.tensor([10.0], device=self.device))
+        # # CLIP GRAD.
+        # attention_norm = torch.minimum(attention_norm, torch.tensor([10.0], device=self.device))
         # print("attention norm / layers:", attention_norm.detach().cpu())
 
         return attention_norm
