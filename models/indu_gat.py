@@ -60,12 +60,12 @@ class induGAT(GATModel):
                 tensorboard: TensorBoardLogger = self.logger
                 skip_count = 0
                 for i in range(len(self.gat_layer_list)):
-                    tensorboard.experiment.add_histogram(f"gat_weight_layer{i}", self.gat_layer_list[i].W.weight.grad)
-                    tensorboard.experiment.add_histogram(f"attention_weight_layer{i}", self.gat_layer_list[i].a.weight.grad)
+                    tensorboard.experiment.add_histogram(f"gradient/gat_weight_layer{i}", self.gat_layer_list[i].W.weight.grad)
+                    tensorboard.experiment.add_histogram(f"gradient/attention_weight_layer{i}", self.gat_layer_list[i].a.weight.grad)
                     if len(self.skip_layer_list) > skip_count:
                         skip_layer = self.skip_layer_list[skip_count]
                         if isinstance(skip_layer, torch.nn.Linear):
-                            tensorboard.experiment.add_histogram(f"skip_weight_layer{i}", skip_layer.weight.grad)
+                            tensorboard.experiment.add_histogram(f"gradient/skip_weight_layer{i}", skip_layer.weight.grad)
                         skip_count += 1
 
     #     print("On backwards")
