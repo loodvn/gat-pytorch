@@ -118,18 +118,18 @@ class GATLayer(nn.Module):
         attention_softmax_denom = torch.index_select(attention_softmax_denom, dim=0, index=target_edges)
         # normalise attention coeffs using a softmax operator.
         # Add an extra small number (epsilon) to prevent underflow / division by zero
-        normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-12)  # shape: (E, NH)
+        normalised_attention_coeffs = attention_exp / (attention_softmax_denom + 1e-8)  # shape: (E, NH)
         self.normalised_attention_coeffs = normalised_attention_coeffs  # Save attention weights
 
         # Dropout (3): on normalized attention coefficients
+        normalised_attention_coeffs_drop = normalised_attention_coeffs
         if self.dropout > 0:
-            normalised_attention_coeffs = self.dropout_layer(normalised_attention_coeffs)
+            normalised_attention_coeffs_drop = self.dropout_layer(normalised_attention_coeffs)
 
         # Inside parenthesis of Equation (4):
         # Multiply all nodes in neighbourhood (with incoming edges) by attention coefficients
-        weighted_neighbourhood_features = normalised_attention_coeffs.view(E, self.num_heads, 1) * source_transformed # target_transformed   # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
+        weighted_neighbourhood_features = normalised_attention_coeffs_drop.view(E, self.num_heads, 1) * source_transformed # target_transformed   # shape: (E, NH, F_OUT) * (E, NH, 1) -> (E, NH, F_OUT)
         assert weighted_neighbourhood_features.size() == (E, self.num_heads, self.out_features)
-
         # Equation (4):
         # Get the attention-weighted sum of neighbours. Aggregate again according to target edge.
         output_features = sum_over_neighbourhood(

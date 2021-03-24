@@ -107,17 +107,17 @@ class GATModel(pl.LightningModule):
             # In either case if we need to add skip connections we can do this outside of the layer.
             # REASONING: IN ORDER TO KEEP THE SAME INTERFACE WE USE THE SKIP CONNECTIONS OUTSIDE OF THE GAT LAYER DEF.
             if self.add_skip_connection[i]:
-                # If we concat then the output shape will be the number of heads. Otherwise we take a mean over each head and therefore can omit this.
+                # If we concat then the output shape will be NH * F_OUT. Otherwise we take a mean over each head and the output shape is just F_OUT.
                 if self.heads_concat_per_layer[i]:
                     skip_layer = Linear(
                         in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
-                        out_features=self.head_output_features_per_layer[i+1] * self.num_heads_per_layer[i+1],
+                        out_features=self.num_heads_per_layer[i+1] * self.head_output_features_per_layer[i+1],
                         bias=False
                     )
                 else:
                     skip_layer = Linear(
-                        in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
-                        out_features=self.num_heads_per_layer[i+1] * self.head_output_features_per_layer[i+1],
+                        in_features=self.head_output_features_per_layer[i],
+                        out_features=self.head_output_features_per_layer[i+1],
                         bias=False
                     )
                     
@@ -153,9 +153,9 @@ class GATModel(pl.LightningModule):
                     skip_connection_layer=self.skip_layer_list[skip_count],
                     input_node_features=layer_input,
                     gat_output_node_features=x,
-                    head_concat=self.gat_layer_list[i].concat,
-                    number_of_heads=self.gat_layer_list[i].num_heads,
-                    output_node_features=self.gat_layer_list[i].out_features)
+                    head_concat=self.heads_concat_per_layer[i],
+                    number_of_heads=self.num_heads_per_layer[i],
+                    output_node_features=self.head_output_features_per_layer[i])
                 skip_count += 1
 
             # ELU between layers
@@ -165,9 +165,10 @@ class GATModel(pl.LightningModule):
         return x
 
     def forward_and_return_attention(self, data, return_attention_weights=True):
+        print("debug: Forward and return attention")
         x, edge_index = data.x, data.edge_index
-        attention_weights_list = []
 
+        attention_weights_list = []
         num_layers = len(self.gat_layer_list)
         skip_count = 0
 
@@ -182,13 +183,14 @@ class GATModel(pl.LightningModule):
 
             # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection[i]:
+                print(f"debug: adding skip at layer {i}")
                 x = self.perform_skip_connection(
                     skip_connection_layer=self.skip_layer_list[skip_count],
                     input_node_features=layer_input,
                     gat_output_node_features=x,
-                    head_concat=self.gat_layer_list[i].concat,
-                    number_of_heads=self.gat_layer_list[i].num_heads,
-                    output_node_features=self.gat_layer_list[i].out_features)
+                    head_concat=self.heads_concat_per_layer[i],
+                    number_of_heads=self.num_heads_per_layer[i],
+                    output_node_features=self.head_output_features_per_layer[i])
                 skip_count += 1
 
             # ELU between layers

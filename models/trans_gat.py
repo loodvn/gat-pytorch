@@ -142,7 +142,8 @@ if __name__ == "__main__":
 
     # Run through GATModel's forward func
     print("running GATModel forward func")
-    out, edge_index, first_attention = model.forward_and_return_attention(batch)
+    out, edge_index, attention_list = model.forward_and_return_attention(batch)
+    print("debug: first attention head:", attention_list[0])
 
 
 

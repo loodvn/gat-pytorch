@@ -13,6 +13,7 @@ from visualisation.entropy_histograms import draw_entropy_histogram
 from visualisation.neighbourhood_attention_weights import draw_neighbour_attention_distribution
 from visualisation.weight_histograms import draw_weights_histogram
 
+
 def get_test_data(dataset_name):
     # Quick and easy function to get the data we require for a test run to get the attention weights.
     if dataset_name == 'Cora' or dataset_name == 'Citeseer' or dataset_name == 'Pubmed':
@@ -20,12 +21,14 @@ def get_test_data(dataset_name):
     else:
         return DataLoader(PPI(root='/tmp/PPI', split='test'))
 
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Read in dataset and any other flags from command line')
     parser.add_argument('--dataset', default='Cora')
     parser.add_argument('--vis_type', default='Entropy')  # Entropy or Neighbour or Weight.
-    
+    parser.add_argument('--checkpoint_path')
+
     args = parser.parse_args()
     dataset = args.dataset
 
@@ -39,15 +42,24 @@ if __name__ == "__main__":
         di = {k: v for k, v in args.__dict__.items() if v is not None}
         config.update(di)
         vis_type = config.pop('vis_type')
+        checkpoint_path = None
+        if 'checkpoint_path' in config.keys():
+            checkpoint_path = config.pop('checkpoint_path')
 
         # Load the model, get the test data and prepare a test batch and then make a call to the forwards function.
-        gat_model = data_utils.load(config, default_file_name_ending)
+        gat_model = data_utils.load(config, default_file_name_ending, checkpoint_path=checkpoint_path)
+
         test_data = get_test_data(config['dataset'])
         batch = next(iter(test_data))
-        outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch, return_attention_weights=True)
+        outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch,
+                                                                                     return_attention_weights=True)
+        # Detach tensors so that we can use them
+        attention_list = [att.detach().cpu() for att in attention_list]
+        print("debug: attention_list", attention_list)
 
         if vis_type == "Entropy":
-            draw_entropy_histogram(edge_index=edge_index, attention_weights=attention_list, num_nodes=batch.x.size()[0], dataset_name=config['dataset'])
+            draw_entropy_histogram(edge_index=edge_index, attention_weights=attention_list, num_nodes=batch.x.size()[0],
+                                   dataset_name=config['dataset'])
         elif vis_type == "Neighbourhood":
             draw_neighbour_attention_distribution(graph_labels=batch.y, edge_index=edge_index,
                                                   attention_weights=attention_list, dataset_name=config['dataset'],
@@ -59,7 +71,11 @@ if __name__ == "__main__":
                 # test data and plot the weight histogram for these. 
                 file_ending = "-" + str(epoch_number) + "epochs.ckpt"
                 gat_model = data_utils.load(config, file_ending)
-                outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch, return_attention_weights=True)
-                draw_weights_histogram(edge_index=edge_index, attention_weights=attention_list, num_nodes=batch.x.size()[0], epoch_number=epoch_number, dataset_name=config['dataset'])
-        else: 
-            raise Exception("Unknown visualisation type. Please use one of 'Entropy', 'Weight (only for PPI)' or 'Neighbourhood'")
+                outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch,
+                                                                                             return_attention_weights=True)
+                draw_weights_histogram(edge_index=edge_index, attention_weights=attention_list,
+                                       num_nodes=batch.x.size()[0], epoch_number=epoch_number,
+                                       dataset_name=config['dataset'])
+        else:
+            raise Exception(
+                "Unknown visualisation type. Please use one of 'Entropy', 'Weight (only for PPI)' or 'Neighbourhood'")
