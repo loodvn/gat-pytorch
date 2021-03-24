@@ -122,7 +122,7 @@ class GATModel(pl.LightningModule):
                         out_features=self.head_output_features_per_layer[i+1],
                         bias=False
                     )
-                    
+
                 skip_layers.append(skip_layer)
         
         # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
@@ -167,7 +167,6 @@ class GATModel(pl.LightningModule):
         return x
 
     def forward_and_return_attention(self, data, return_attention_weights=True):
-        print("debug: Forward and return attention")
         x, edge_index = data.x, data.edge_index
 
         attention_weights_list = []
@@ -185,7 +184,7 @@ class GATModel(pl.LightningModule):
 
             # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection[i]:
-                print(f"debug: adding skip at layer {i}")
+                # print(f"debug: adding skip at layer {i}")
                 x = self.perform_skip_connection(
                     skip_connection_layer=self.skip_layer_list[skip_count],
                     input_node_features=layer_input,
