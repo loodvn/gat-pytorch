@@ -108,20 +108,19 @@ class GATModel(pl.LightningModule):
             # REASONING: IN ORDER TO KEEP THE SAME INTERFACE WE USE THE SKIP CONNECTIONS OUTSIDE OF THE GAT LAYER DEF.
             # These linear projections add a lot of extra capacity - basically the same size as the weight matrix W.
             if self.add_skip_connection[i]:
-                # If concatenating: add a linear projection from NH(l-1) * F_OUT(l-1) -> NH(l) * F_OUT(l)
+                skip_in = self.num_heads_per_layer[i] * self.head_output_features_per_layer[i]
+
                 if self.heads_concat_per_layer[i]:
-                    skip_layer = Linear(
-                        in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
-                        out_features=self.num_heads_per_layer[i+1] * self.head_output_features_per_layer[i+1],
-                        bias=False
-                    )
-                # Add a linear projection from output[i] to output[i+1].
+                    # If concatenating: add a linear projection from NH(l-1) * F_OUT(l-1) -> NH(l) * F_OUT(l)
+                    skip_out = self.num_heads_per_layer[i + 1] * self.head_output_features_per_layer[i + 1]
                 else:
-                    skip_layer = Linear(
-                        in_features=self.head_output_features_per_layer[i],
-                        out_features=self.head_output_features_per_layer[i+1],
-                        bias=False
-                    )
+                    # Add a linear projection from NH(l-1) * F_OUT(l-1) to F_OUT(l).
+                    skip_out = self.head_output_features_per_layer[i+1]
+
+                if skip_in != skip_out:
+                    skip_layer = nn.Identity()
+                else:
+                    skip_layer = nn.Linear(in_features=skip_in, out_features=skip_out, bias=False)
 
                 skip_layers.append(skip_layer)
         
@@ -151,14 +150,16 @@ class GATModel(pl.LightningModule):
 
             # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection[i]:
-                x = self.perform_skip_connection(
-                    skip_connection_layer=self.skip_layer_list[skip_count],
-                    input_node_features=layer_input,
-                    gat_output_node_features=x,
-                    head_concat=self.heads_concat_per_layer[i],
-                    number_of_heads=self.num_heads_per_layer[i],
-                    output_node_features=self.head_output_features_per_layer[i])
+                # Use linear projection if layer_input.dim() != x.dim(); otherwise skip_layer == nn.Identity()
+                skip_output = self.skip_layer_list[skip_count](layer_input)
                 skip_count += 1
+                if self.heads_concat_per_layer[i]:
+                    x = x + skip_output
+                else:
+                    # Aggregate by mean
+                    skip_output = skip_output.view(-1, self.num_heads_per_layer[i + 1],
+                                                   self.head_output_features_per_layer[i + 1])
+                    x = x + skip_output.mean(dim=1)
 
             # ELU between layers
             if i != num_layers - 1:
@@ -184,15 +185,16 @@ class GATModel(pl.LightningModule):
 
             # Add a skip connection between the input and GAT layer output
             if self.add_skip_connection[i]:
-                # print(f"debug: adding skip at layer {i}")
-                x = self.perform_skip_connection(
-                    skip_connection_layer=self.skip_layer_list[skip_count],
-                    input_node_features=layer_input,
-                    gat_output_node_features=x,
-                    head_concat=self.heads_concat_per_layer[i],
-                    number_of_heads=self.num_heads_per_layer[i],
-                    output_node_features=self.head_output_features_per_layer[i])
+                # Use linear projection if layer_input.dim() != x.dim(); otherwise skip_layer == nn.Identity()
+                skip_output = self.skip_layer_list[skip_count](layer_input)
                 skip_count += 1
+                if self.heads_concat_per_layer[i]:
+                    x = x + skip_output
+                else:
+                    # Aggregate by mean
+                    skip_output = skip_output.view(-1, self.num_heads_per_layer[i + 1],
+                                                   self.head_output_features_per_layer[i + 1])
+                    x = x + skip_output.mean(dim=1)
 
             # ELU between layers
             if i != num_layers - 1:
@@ -200,20 +202,18 @@ class GATModel(pl.LightningModule):
 
         return x, edge_index, attention_weights_list
 
-    def perform_skip_connection(self, skip_connection_layer, input_node_features, gat_output_node_features, head_concat, number_of_heads, output_node_features):
-        if input_node_features.shape[-1] == gat_output_node_features.shape[-1]:
+    def perform_skip_connection(self, skip_connection_layer, layer_input, layer_output, concat, heads_out, features_out):
+        if layer_input.shape[-1] == layer_output.shape[-1]:
             # This is fine we can just add these and return.
-            gat_output_node_features += input_node_features
+            layer_output += layer_input
         else:
-            if head_concat:
-                gat_output_node_features += skip_connection_layer(input_node_features)
+            if concat:
+                layer_output += skip_connection_layer(layer_input)
             else:
-                # Remove the hard coding.
-                # OW: TODO - need to pass these in I think.
-                skip_output = skip_connection_layer(input_node_features).view(-1, number_of_heads, output_node_features)
-                gat_output_node_features += skip_output.mean(dim=1)
+                skip_output = skip_connection_layer(layer_input).view(-1, heads_out, features_out)
+                layer_output += skip_output.mean(dim=1)
         
-        return gat_output_node_features
+        return layer_output
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
