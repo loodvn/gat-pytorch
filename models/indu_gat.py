@@ -119,6 +119,9 @@ class induGAT(GATModel):
 
         # print("attention norm total:", attention_norm.detach().cpu())
         attention_norm = attention_norm / torch.tensor(num_layers, device=self.device)
+
+        # CLIP GRAD.
+        attention_norm = torch.minimum(attention_norm, torch.tensor([10.0], device=self.device))
         # print("attention norm / layers:", attention_norm.detach().cpu())
 
         return attention_norm
