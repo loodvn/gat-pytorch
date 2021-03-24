@@ -34,11 +34,13 @@ class induGAT(GATModel):
         self.log("train_attention_norm", attention_norm.detach().cpu())
 
         norm_loss = self.attention_penalty * attention_norm
+        print("Norm Loss: {}".format(loss.detach().cpu()))
         # print("bce loss: ", loss.detach().cpu())
         # print(f"norm loss with lambda = {self.attention_penalty}", norm_loss.detach().cpu())
         self.log("train_norm_loss", norm_loss.detach().cpu())
 
         loss = loss + norm_loss
+        print("Total Loss: {}".format(loss.detach().cpu()))
 
         self.log('train_loss', loss.detach().cpu(), prog_bar=True, logger=True)
         
