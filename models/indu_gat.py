@@ -23,9 +23,8 @@ class induGAT(GATModel):
         self.attention_penalty = attention_penalty
 
     def training_step(self, batch, batch_idx):
-
         # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
-        out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_coeffs=True)  # attention_weights_list
+        out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_weights=True)  # attention_weights_list
 
         loss = self.loss_fn(out, batch.y)
 

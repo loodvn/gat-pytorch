@@ -164,7 +164,7 @@ class GATModel(pl.LightningModule):
 
         return x
 
-    def forward_and_return_attention(self, data, return_attention_coeffs=True):
+    def forward_and_return_attention(self, data, return_attention_weights=True):
         x, edge_index = data.x, data.edge_index
         attention_weights_list = []
 
@@ -177,7 +177,7 @@ class GATModel(pl.LightningModule):
 
             x = F.dropout(x, p=self.dropout, training=self.training)
             # Get outputs from GAT layer
-            x, (edge_index, layer_attention_weight) = self.gat_layer_list[i](x, edge_index, return_attention_coeffs)
+            x, (edge_index, layer_attention_weight) = self.gat_layer_list[i](x, edge_index, return_attention_weights=return_attention_weights)
             attention_weights_list.append(layer_attention_weight)
 
             # Add a skip connection between the input and GAT layer output

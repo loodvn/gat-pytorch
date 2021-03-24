@@ -44,7 +44,7 @@ if __name__ == "__main__":
         gat_model = data_utils.load(config, default_file_name_ending)
         test_data = get_test_data(config['dataset'])
         batch = next(iter(test_data))
-        outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch, return_attention_coeffs=True)        
+        outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch, return_attention_weights=True)
 
         if vis_type == "Entropy":
             draw_entropy_histogram(edge_index=edge_index, attention_weights=attention_list, num_nodes=batch.x.size()[0], dataset_name=config['dataset'])
@@ -59,7 +59,7 @@ if __name__ == "__main__":
                 # test data and plot the weight histogram for these. 
                 file_ending = "-" + str(epoch_number) + "epochs.ckpt"
                 gat_model = data_utils.load(config, file_ending)
-                outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch, return_attention_coeffs=True)
+                outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch, return_attention_weights=True)
                 draw_weights_histogram(edge_index=edge_index, attention_weights=attention_list, num_nodes=batch.x.size()[0], epoch_number=epoch_number, dataset_name=config['dataset'])
         else: 
             raise Exception("Unknown visualisation type. Please use one of 'Entropy', 'Weight (only for PPI)' or 'Neighbourhood'")
