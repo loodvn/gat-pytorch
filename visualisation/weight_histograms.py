@@ -93,4 +93,4 @@ def draw_weights_histogram(edge_index: torch.Tensor,
             # Call the histogram plotting tool. 
             create_attention_weight_dual_histogram(neighbourhood_weights, uniform_dist_weights,
                                                    dataset_name=dataset_name, epoch=epoch_number, layer_num=layer, head_num=head,
-                                                   show=False, save=True, transductive=(dataset_name != 'PPI'))
+                                                   show=True, save=False, transductive=(dataset_name != 'PPI'))

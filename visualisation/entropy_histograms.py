@@ -115,4 +115,4 @@ def draw_entropy_histogram(edge_index: torch.Tensor,
             # Call the attention mechanism. 
             create_attention_weight_dual_entropy_histogram(neighbourhood_entropy_list, uniform_dist_entropy_list,
                                                            dataset_name=dataset_name+"1", layer_num=layer, head_num=head,
-                                                           show=False, save=True, transductive=(dataset_name != 'PPI'))
+                                                           show=True, save=False, transductive=(dataset_name != 'PPI'))
