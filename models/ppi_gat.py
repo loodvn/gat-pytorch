@@ -17,7 +17,7 @@ from models.GATModel import GATModel
 from models.utils import sum_over_neighbourhood, explicit_broadcast
 
 
-class induGAT(GATModel):
+class PPIGAT(GATModel):
     def __init__(self, attention_penalty=0.0, track_grads=False, **config):
         super().__init__(**config)
         self.loss_fn = BCEWithLogitsLoss(reduction='mean')
@@ -150,16 +150,16 @@ if __name__ == "__main__":
     import run_config
     dataset = "PPI"
     config = run_config.data_config[dataset]
-    model = induGAT(dataset=dataset, **config)
+    model = PPIGAT(dataset=dataset, **config)
 
-    print("Debug: Running a batch directly through indu_gat")
+    print("Debug: Running a batch directly through ppi_gat")
     ds = PPI(root='/tmp/PPI', split='train')
     dl = DataLoader(ds)
     # Get 1 batch from Cora
     batch = next(iter(dl))
     print(batch)
 
-    # Get loss from indu_gat
+    # Get loss from ppi_gat
     loss = model.training_step(batch, 0)
 
     loss.backward()

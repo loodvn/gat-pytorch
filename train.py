@@ -3,7 +3,7 @@ import argparse
 import pytorch_lightning as pl
 
 import data_utils as d_utils
-from models.indu_gat import induGAT
+from models.ppi_gat import PPIGAT
 from models.trans_gat import transGAT
 from run_config import data_config
 
@@ -27,7 +27,7 @@ def run(config):
 
     if config['exec_type'] == 'train':
         if config['test_type'] == 'Inductive':
-            gat = induGAT(**config)
+            gat = PPIGAT(**config)
         else:
             gat = transGAT(**config)
 
