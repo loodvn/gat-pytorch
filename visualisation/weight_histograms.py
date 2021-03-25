@@ -22,14 +22,15 @@ def create_attention_weight_dual_histogram(attention_weight_values: List[float],
                                             transductive: bool):
 
     # Plot the histogram on the same axis using a logarithmic scale on the y axis.
-    plt.hist(x=attention_weight_values, bins=20, range=[0, 5], color='green', alpha=0.7, label='Attention Weights')
-    plt.yscale('log')
-    plt.hist(x=uniform_weight_values, bins=20, range=[0, 5], color='darkred', alpha=0.7, label='Uniform Weights')
-    plt.yscale('log')
+    low_range, high_range = (0, 5) if dataset_name == "PPI" else (0.5, 1.5)
+    plt.hist(x=attention_weight_values, bins=20, range=[low_range, high_range], color='green', alpha=0.7, label='Attention Weights')
+    if dataset_name == "PPI": plt.yscale('log')
+    plt.hist(x=uniform_weight_values, bins=20, range=[low_range, high_range], color='darkred', alpha=0.7, label='Uniform Weights')
+    if dataset_name == "PPI": plt.yscale('log')
     plt.legend()
     plt.title("Attention Weight Plot: Epochs: {}. Layer {}. Head {}.".format(epoch, layer_num, head_num))
     plt.xlabel("Attention Weight")
-    plt.ylabel("Log Frequency")
+    plt.ylabel("Log Frequency") if dataset_name == "PPI" else plt.ylabel("Frequency")
 
 
     histo_fig = plt.gcf()
@@ -86,6 +87,8 @@ def draw_weights_histogram(edge_index: torch.Tensor,
             
             # Reflect the uniform dist.
             uniform_dist_weights = [1 for i in neighbourhood_weights]
+
+            print("Len of uniform: {}. Len of attention: {}".format(len(uniform_dist_weights), len(neighbourhood_weights)))
 
             # Call the histogram plotting tool. 
             create_attention_weight_dual_histogram(neighbourhood_weights, uniform_dist_weights,

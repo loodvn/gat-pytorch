@@ -64,17 +64,26 @@ if __name__ == "__main__":
                                                   attention_weights=attention_list, dataset_name=config['dataset'],
                                                   layer_num=0, head_num=0, show=False)
         elif vis_type == "Weight":
-            epochs_recorded = [1, 5, 10, 20, 50, 100]
-            for epoch_number in epochs_recorded:
-                # We need to load up the different modules in succesion for the different. Once this is loaded we complete a forward pass on a batch of then
-                # test data and plot the weight histogram for these. 
-                file_ending = "-" + str(epoch_number) + "epochs.ckpt"
+            if config['dataset'] == "PPI":
+                epochs_recorded = [1, 5, 10, 20, 50, 100]
+                for epoch_number in epochs_recorded:
+                    # We need to load up the different modules in succesion for the different. Once this is loaded we complete a forward pass on a batch of then
+                    # test data and plot the weight histogram for these. 
+                    file_ending = "-" + str(epoch_number) + "epochs.ckpt"
+                    gat_model = data_utils.load(config, file_ending)
+                    outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch,
+                                                                                                return_attention_weights=True)
+                    draw_weights_histogram(edge_index=edge_index, attention_weights=attention_list,
+                                        num_nodes=batch.x.size()[0], epoch_number=epoch_number,
+                                        dataset_name=config['dataset'])
+            else:
+                file_ending = "-100epochs.ckpt"
                 gat_model = data_utils.load(config, file_ending)
                 outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch,
-                                                                                             return_attention_weights=True)
+                                                                                            return_attention_weights=True)
                 draw_weights_histogram(edge_index=edge_index, attention_weights=attention_list,
-                                       num_nodes=batch.x.size()[0], epoch_number=epoch_number,
-                                       dataset_name=config['dataset'])
+                                    num_nodes=batch.x.size()[0], epoch_number=100,
+                                    dataset_name=config['dataset'])
         else:
             raise Exception(
                 "Unknown visualisation type. Please use one of 'Entropy', 'Weight (only for PPI)' or 'Neighbourhood'")
