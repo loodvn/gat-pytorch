@@ -17,7 +17,7 @@ from models.GATModel import GATModel
 from models.utils import sum_over_neighbourhood, explicit_broadcast
 
 
-class PPIGAT(GATModel):
+class PPI_GAT(GATModel):
     def __init__(self, attention_penalty=0.0, track_grads=False, **config):
         super().__init__(**config)
         self.loss_fn = BCEWithLogitsLoss(reduction='mean')
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     import run_config
     dataset = "PPI"
     config = run_config.data_config[dataset]
-    model = PPIGAT(dataset=dataset, **config)
+    model = PPI_GAT(dataset=dataset, **config)
 
     print("Debug: Running a batch directly through ppi_gat")
     ds = PPI(root='/tmp/PPI', split='train')

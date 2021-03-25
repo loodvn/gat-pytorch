@@ -5,7 +5,7 @@ from torch_geometric.datasets import GNNBenchmarkDataset
 from torch_geometric.data import DataLoader
 import models.GATModel
 
-class patGAT(models.GATModel.GATModel):
+class PatternGAT(models.GATModel.GATModel):
     def __init__(self, **config):    
         super().__init__(**config)
         data = [4.65]

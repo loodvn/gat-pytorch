@@ -3,7 +3,7 @@ import argparse
 import pytorch_lightning as pl
 
 import data_utils as d_utils
-from models.ppi_gat import PPIGAT
+from models.ppi_gat import PPI_GAT
 from models.planetoid_gat import PlanetoidGAT
 from run_config import data_config
 
@@ -26,8 +26,10 @@ def run(config):
     )
 
     if config['exec_type'] == 'train':
-        if config['test_type'] == 'Inductive':
-            gat = PPIGAT(**config)
+        if config['dataset'] == 'PATTERN':
+            gat = PatternGAT(**config)
+        elif config['dataset'] == 'PPI':
+            gat = PPI_GAT(**config)
         else:
             gat = PlanetoidGAT(**config)
 

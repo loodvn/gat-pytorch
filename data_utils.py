@@ -1,6 +1,6 @@
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from models.planetoid_gat import PlanetoidGAT
-from models.ppi_gat import PPIGAT
+from models.ppi_gat import PPI_GAT
 
 
 def is_number(s):
@@ -37,7 +37,7 @@ def load(config, file_name_ending='-best.ckpt', checkpoint_path=None):
         path = checkpoint_path
 
     if config['test_type'] == 'Inductive':
-        loaded_model = PPIGAT.load_from_checkpoint(checkpoint_path=path, **config)
+        loaded_model = PPI_GAT.load_from_checkpoint(checkpoint_path=path, **config)
     else:
         loaded_model = PlanetoidGAT.load_from_checkpoint(checkpoint_path=path, **config)
     return loaded_model
