@@ -10,7 +10,7 @@ from models.GATModel import GATModel
 from models.utils import sum_over_neighbourhood, explicit_broadcast
 
 
-class transGAT(GATModel):
+class PlanetoidGAT(GATModel):
     def __init__(self, attention_reward=0.0, **config):
         super().__init__(**config)
         self.loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
@@ -124,7 +124,7 @@ class transGAT(GATModel):
 if __name__ == "__main__":
     import run_config
     config = run_config.data_config['Cora']
-    model = transGAT(dataset="Cora", **config)
+    model = PlanetoidGAT(dataset="Cora", **config)
 
     ds = Planetoid(root='/tmp/Cora', name="Cora")
     dl = DataLoader(ds)
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     batch = next(iter(dl))
     print(batch)
 
-    # Get loss from trans_gat
+    # Get loss from planetoid_gat
     loss = model.training_step(batch, 0)
 
     loss.backward()

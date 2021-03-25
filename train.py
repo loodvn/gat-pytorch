@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 
 import data_utils as d_utils
 from models.ppi_gat import PPIGAT
-from models.trans_gat import transGAT
+from models.planetoid_gat import PlanetoidGAT
 from run_config import data_config
 
 
@@ -29,7 +29,7 @@ def run(config):
         if config['test_type'] == 'Inductive':
             gat = PPIGAT(**config)
         else:
-            gat = transGAT(**config)
+            gat = PlanetoidGAT(**config)
 
         trainer.fit(gat)
         # trainer.test(gat)
