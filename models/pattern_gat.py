@@ -1,10 +1,16 @@
+import torch
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
+from torch_geometric.datasets import GNNBenchmarkDataset
+from torch_geometric.data import DataLoader
+import models.GATModel
 
 class patGAT(models.GATModel.GATModel):
     def __init__(self, **config):    
         super().__init__(**config)
         data = [4.65]
         dataset_balance = torch.tensor(data)
-        self.criterion = torch.nn.BCEWithLogitsLoss(reduction='mean', pos_weight=dataset_balance)
+        self.loss_fn = torch.nn.BCEWithLogitsLoss(reduction='mean', pos_weight=dataset_balance)
 
     def training_step(self, batch, batch_idx):
         out = self(batch)
@@ -12,7 +18,7 @@ class patGAT(models.GATModel.GATModel):
 
         target = (batch.y).float()
 
-        loss = self.criterion(out, target)
+        loss = self.loss_fn(out, target)
 
         out = (out > 0)
 
@@ -31,7 +37,7 @@ class patGAT(models.GATModel.GATModel):
 
         target = (batch.y).float()
 
-        loss = self.criterion(out, target)
+        loss = self.loss_fn(out, target)
         
         out = (out > 0)
 
