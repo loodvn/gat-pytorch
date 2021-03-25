@@ -16,7 +16,7 @@ class Dataset(Enum):
 # remember to set values of in and output to features and classes in GAT
 data_config = {
     "PPI": {
-        # "test_type": "Inductive",
+        "test_type": "Inductive",
         "layer_type": LayerType.GATLayer,
         "num_input_node_features": 50,
         "num_layers": 3, 
@@ -34,7 +34,7 @@ data_config = {
         # Do we need to add bias.
     },
     "PATTERN": {
-    #   "test_type": "Other",
+      "test_type": "Other",
         "layer_type": LayerType.GATLayer,
         "num_input_node_features": 3,
         "num_layers": 4, 
@@ -51,7 +51,7 @@ data_config = {
         "const_attention": False
     },
     "Cora": {
-        # "test_type": "Transductive",
+        "test_type": "Transductive",
         "layer_type": LayerType.GATLayer,
         "num_layers": 2, 
         "num_input_node_features": 1433,
@@ -69,7 +69,7 @@ data_config = {
         # Do we need to add bias.
     },
     "Citeseer": {
-        # "test_type": "Transductive",
+        "test_type": "Transductive",
         "layer_type": LayerType.GATLayer,
         "num_layers": 2, 
         "num_input_node_features": 3703,
@@ -87,7 +87,7 @@ data_config = {
         # Do we need to add bias.
     },
     "Pubmed": {
-        # "test_type": "Transductive",
+        "test_type": "Transductive",
         "layer_type": LayerType.GATLayer,
         "num_layers": 2, 
         "num_input_node_features": 500,
