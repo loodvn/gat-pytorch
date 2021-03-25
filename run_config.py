@@ -16,9 +16,8 @@ class Dataset(Enum):
 # remember to set values of in and output to features and classes in GAT
 data_config = {
     "PPI": {
-        "test_type": "Inductive",
+        # "test_type": "Inductive",
         "layer_type": LayerType.GATLayer,
-        # "layer_type": LayerType.PyTorch_Geometric,
         "num_input_node_features": 50,
         "num_layers": 3, 
         "num_heads_per_layer": [4, 4, 6],  
@@ -34,10 +33,26 @@ data_config = {
         "const_attention": False
         # Do we need to add bias.
     },
-    "Cora": {
-        "test_type": "Transductive",
+    "PATTERN": {
+    #   "test_type": "Other",
         "layer_type": LayerType.GATLayer,
-        # "layer_type": LayerType.PyTorch_Geometric,
+        "num_input_node_features": 3,
+        "num_layers": 4, 
+        "num_heads_per_layer": [4, 4, 4, 1],  
+        "heads_concat_per_layer": [True, True, True, False],
+        "head_output_features_per_layer": [3, 12, 24, 12, 1],
+        "num_classes": 1,
+        "add_skip_connection": [True, True, True, True], 
+        "dropout": 0,
+        "l2_reg": 0, 
+        "learning_rate": 0.005,
+        "train_batch_size": 8,
+        "num_epochs": 1000,
+        "const_attention": False
+    },
+    "Cora": {
+        # "test_type": "Transductive",
+        "layer_type": LayerType.GATLayer,
         "num_layers": 2, 
         "num_input_node_features": 1433,
         "num_heads_per_layer": [8, 1],  
@@ -54,9 +69,8 @@ data_config = {
         # Do we need to add bias.
     },
     "Citeseer": {
-        "test_type": "Transductive",
+        # "test_type": "Transductive",
         "layer_type": LayerType.GATLayer,
-        # "layer_type": LayerType.PyTorch_Geometric,
         "num_layers": 2, 
         "num_input_node_features": 3703,
         "num_heads_per_layer": [8, 1],  
@@ -73,9 +87,8 @@ data_config = {
         # Do we need to add bias.
     },
     "Pubmed": {
-        "test_type": "Transductive",
+        # "test_type": "Transductive",
         "layer_type": LayerType.GATLayer,
-        # "layer_type": LayerType.PyTorch_Geometric,
         "num_layers": 2, 
         "num_input_node_features": 500,
         "num_heads_per_layer": [8, 8],  
