@@ -1,4 +1,5 @@
 import torch
+from sklearn.metrics import balanced_accuracy_score
 from torch_geometric.datasets import GNNBenchmarkDataset
 
 import models.GATModel
@@ -7,7 +8,9 @@ import models.GATModel
 class PatternGAT(models.GATModel.GATModel):
     def __init__(self, **config):
         super().__init__(**config)
-        data = [4.65]
+        # 0.1765 of the train dataset (209900. / 1189120.0 over all graphs) is from the positive class
+        self.prop_pos = 0.1765
+        data = [1/self.prop_pos]  # previously [4.65]
         dataset_balance = torch.tensor(data)
         self.loss_fn = torch.nn.BCEWithLogitsLoss(reduction='mean', pos_weight=dataset_balance)
         self.track_grads=False
@@ -20,13 +23,12 @@ class PatternGAT(models.GATModel.GATModel):
 
         loss = self.loss_fn(out, target)
 
-        out = (out > 0)
+        out = (out > 0)  # If logits are > 0, then sigmoid probabilities would be > 0.5
 
-        train_correct = out == target  # Check against ground-truth labels.
-        train_acc = int(train_correct.sum()) / int(len(target))  # Derive ratio of correct predictions.
+        train_acc = self.balanced_acc(target.detach().cpu().numpy(), out.detach().cpu().numpy())
 
         self.log('train_loss', loss, prog_bar=True, logger=True)
-        self.log('train_acc', train_acc, prog_bar=True, logger=True)
+        self.log('train_weighted_acc', train_acc, prog_bar=True, logger=True)
 
         return loss
 
@@ -40,11 +42,10 @@ class PatternGAT(models.GATModel.GATModel):
 
         out = (out > 0)
 
-        val_correct = out == target  # Check against ground-truth labels.
-        val_acc = int(val_correct.sum()) / int(len(target))  # Derive ratio of correct predictions.
+        val_acc = self.balanced_acc(target.detach().cpu().numpy(), out.detach().cpu().numpy())
 
         self.log('val_loss', loss, prog_bar=True, logger=True)
-        self.log('val_acc', val_acc, prog_bar=True, logger=True)
+        self.log('val_weighted_acc', val_acc, prog_bar=True, logger=True)
 
         return loss
 
@@ -54,8 +55,7 @@ class PatternGAT(models.GATModel.GATModel):
         out = (out > 0)
         target = (batch.y).float()
 
-        test_correct = out == target  # Check against ground-truth labels.
-        test_acc = int(test_correct.sum()) / int(len(target))  # Derive ratio of correct predictions.
+        test_acc = self.balanced_acc(target.detach().cpu().numpy(), out.detach().cpu().numpy())
 
         self.log('test_acc', test_acc, prog_bar=True, logger=True)
         return test_acc
@@ -73,3 +73,11 @@ class PatternGAT(models.GATModel.GATModel):
         self.train_ds = GNNBenchmarkDataset(root='/tmp/Pattern', name="PATTERN", split='train')
         self.val_ds = GNNBenchmarkDataset(root='/tmp/Pattern', name="PATTERN", split='val')
         self.test_ds = GNNBenchmarkDataset(root='/tmp/Pattern', name="PATTERN", split='test')
+
+    def balanced_acc(self, y_true, y_pred):
+        # Note: Please ensure that you detach().cpu() tensors before calling
+        # https://scikit-learn.org/stable/modules/model_evaluation.html#balanced-accuracy-score
+        # "each sample is weighted according to the inverse prevalence of its true class"
+        sample_weights = 1 / self.prop_pos * (y_pred == 1.) + (1 / (1 - self.prop_pos) * (y_pred == 0.))
+        balanced_acc = balanced_accuracy_score(y_true, y_pred, sample_weight=sample_weights)
+        return balanced_acc
