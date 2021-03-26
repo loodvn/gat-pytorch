@@ -1,4 +1,6 @@
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+
+from models.pattern_gat import PatternGAT
 from models.planetoid_gat import PlanetoidGAT
 from models.ppi_gat import PPI_GAT
 

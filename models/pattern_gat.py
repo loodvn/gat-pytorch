@@ -57,7 +57,7 @@ class PatternGAT(models.GATModel.GATModel):
 
         test_acc = self.balanced_acc(target.detach().cpu().numpy(), out.detach().cpu().numpy())
 
-        self.log('test_acc', test_acc, prog_bar=True, logger=True)
+        self.log('test_weighted_acc', test_acc, prog_bar=True, logger=True)
         return test_acc
 
     def configure_optimizers(self):

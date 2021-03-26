@@ -22,30 +22,14 @@ def get_test_data(dataset_name):
         return DataLoader(PPI(root='/tmp/PPI', split='test'))
 
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description='Read in dataset and any other flags from command line')
-    parser.add_argument('--dataset', default='Cora')
-    parser.add_argument('--vis_type', default='Entropy')  # Entropy or Neighbour or Weight.
-    parser.add_argument('--checkpoint_path')
-
-    args = parser.parse_args()
-    dataset = args.dataset
-
+def main(dataset, vis_type, checkpoint_path=None):
     # Used to run for each dataset the epoch 100 checkpoint, which should give a good level of accuracy / F1 score.
     default_file_name_ending = "-100epochs.ckpt"
-
     if dataset not in data_config.keys():
         print(f"Dataset not valid. Must be one of {data_config.keys()}. {dataset} given.")
     else:
         config = data_config[dataset]
-        di = {k: v for k, v in args.__dict__.items() if v is not None}
-        config.update(di)
-        config['test_type'] = 'Inductive' if dataset=='PPI' else "Transductive"
-        vis_type = config.pop('vis_type')
-        checkpoint_path = None
-        if 'checkpoint_path' in config.keys():
-            checkpoint_path = config.pop('checkpoint_path')
+        config['test_type'] = 'Inductive' if dataset == 'PPI' else "Transductive"
 
         # Load the model, get the test data and prepare a test batch and then make a call to the forwards function.
         gat_model = data_utils.load(config, default_file_name_ending, checkpoint_path=checkpoint_path)
@@ -69,22 +53,35 @@ if __name__ == "__main__":
                 epochs_recorded = [1, 5, 10, 20, 50, 100]
                 for epoch_number in epochs_recorded:
                     # We need to load up the different modules in succesion for the different. Once this is loaded we complete a forward pass on a batch of then
-                    # test data and plot the weight histogram for these. 
+                    # test data and plot the weight histogram for these.
                     file_ending = "-" + str(epoch_number) + "epochs.ckpt"
                     gat_model = data_utils.load(config, file_ending)
                     outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch,
-                                                                                                return_attention_weights=True)
+                                                                                                 return_attention_weights=True)
                     draw_weights_histogram(edge_index=edge_index, attention_weights=attention_list,
-                                        num_nodes=batch.x.size()[0], epoch_number=epoch_number,
-                                        dataset_name=config['dataset'])
+                                           num_nodes=batch.x.size()[0], epoch_number=epoch_number,
+                                           dataset_name=config['dataset'])
             else:
                 file_ending = "-100epochs.ckpt"
                 gat_model = data_utils.load(config, file_ending)
                 outputs, edge_index, attention_list = gat_model.forward_and_return_attention(batch,
-                                                                                            return_attention_weights=True)
+                                                                                             return_attention_weights=True)
                 draw_weights_histogram(edge_index=edge_index, attention_weights=attention_list,
-                                    num_nodes=batch.x.size()[0], epoch_number=100,
-                                    dataset_name=config['dataset'])
+                                       num_nodes=batch.x.size()[0], epoch_number=100,
+                                       dataset_name=config['dataset'])
         else:
             raise Exception(
                 "Unknown visualisation type. Please use one of 'Entropy', 'Weight (only for PPI)' or 'Neighbourhood'")
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Read in dataset and any other flags from command line')
+    parser.add_argument('--dataset', default='Cora')
+    parser.add_argument('--vis_type', default='Entropy')  # Entropy or Neighbour or Weight.
+    parser.add_argument('--checkpoint_path')
+
+    args = parser.parse_args()
+    dataset = args.dataset
+
+    main(dataset, args.vis_type, args.checkpoint_path)
