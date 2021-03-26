@@ -27,7 +27,7 @@ def get_test_data(dataset_name):
         raise ValueError(f"Dataset name not valid. Expected one of {planetoid_datasets}/PPI/PATTERN")
 
 
-def main(dataset, vis_type, checkpoint_path=None, save=False):
+def main(dataset, vis_type, checkpoint_path=None, show=True, save=False):
     # Used to run for each dataset the epoch 100 checkpoint, which should give a good level of accuracy / F1 score.
     default_file_name_ending = "-100epochs.ckpt"
     if dataset not in data_config.keys():
@@ -53,7 +53,7 @@ def main(dataset, vis_type, checkpoint_path=None, save=False):
         elif vis_type == "Neighbourhood":
             draw_neighbour_attention_distribution(graph_labels=batch.y, edge_index=edge_index,
                                                   attention_weights=attention_list, dataset_name=config['dataset'],
-                                                  layer_num=0, head_num=0, show=True, save=save)
+                                                  layer_num=0, head_num=0, show=show, save=save)
         elif vis_type == "Weight":
             if config['dataset'] == "PPI":
                 epochs_recorded = [1, 5, 10, 20, 50, 100]
@@ -74,7 +74,7 @@ def main(dataset, vis_type, checkpoint_path=None, save=False):
                                                                                              return_attention_weights=True)
                 draw_weights_histogram(edge_index=edge_index, attention_weights=attention_list,
                                        num_nodes=batch.x.size()[0], epoch_number=100,
-                                       dataset_name=config['dataset'], save=save)
+                                       dataset_name=config['dataset'], save=True)
         else:
             raise Exception(
                 "Unknown visualisation type. Please use one of 'Entropy', 'Weight (only for PPI)' or 'Neighbourhood'")

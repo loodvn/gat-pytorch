@@ -38,7 +38,7 @@ def create_attention_weight_dual_histogram(attention_weight_values: List[float],
         # Create intermediate directories if they do not exist. Could extract this out to a utils file.
         if not os.path.isdir(FIGURE_DIR_PATH):
             os.mkdir(FIGURE_DIR_PATH)
-        save_dir = os.path.join(FIGURE_DIR_PATH, dataset_name)
+        save_dir = os.path.join(FIGURE_DIR_PATH, dataset_name, f'epoch_'+str(epoch))
         if not os.path.isdir(save_dir):
             os.mkdir(save_dir)
 
