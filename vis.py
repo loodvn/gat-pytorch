@@ -29,6 +29,7 @@ def main(dataset, vis_type, checkpoint_path=None):
         print(f"Dataset not valid. Must be one of {data_config.keys()}. {dataset} given.")
     else:
         config = data_config[dataset]
+        config['dataset'] = dataset  # Necessary for some of the GATModel files
         config['test_type'] = 'Inductive' if dataset == 'PPI' else "Transductive"
 
         # Load the model, get the test data and prepare a test batch and then make a call to the forwards function.
