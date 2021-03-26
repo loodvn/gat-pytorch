@@ -4,12 +4,13 @@ from torch_geometric.datasets import GNNBenchmarkDataset
 import models.GATModel
 
 
-class patGAT(models.GATModel.GATModel):
+class PatternGAT(models.GATModel.GATModel):
     def __init__(self, **config):
         super().__init__(**config)
         data = [4.65]
         dataset_balance = torch.tensor(data)
         self.loss_fn = torch.nn.BCEWithLogitsLoss(reduction='mean', pos_weight=dataset_balance)
+        self.track_grads=False
 
     def training_step(self, batch, batch_idx):
         out = self(batch)

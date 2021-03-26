@@ -1,16 +1,17 @@
 import os
 from typing import List
 
-import pytorch_lightning as pl
+
 import torch
-import torch.nn.functional as F
 from torch import nn
-from torch.nn import Linear
+import torch.nn.functional as F
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GATConv
 
+from models.utils import sum_over_neighbourhood, explicit_broadcast
 from .gat_layer import GATLayer
-# pl.seed_everything(42)
 from run_config import LayerType
 
 _num_cpu = os.cpu_count()
@@ -94,7 +95,6 @@ class GATModel(pl.LightningModule):
             gat_layers.append(gat_layer)
 
             # In either case if we need to add skip connections we can do this outside of the layer.
-            # REASONING: IN ORDER TO KEEP THE SAME INTERFACE WE USE THE SKIP CONNECTIONS OUTSIDE OF THE GAT LAYER DEF.
             # These linear projections add a lot of extra capacity - basically the same size as the weight matrix W.
             if self.add_skip_connection[i]:
                 skip_in = self.num_heads_per_layer[i] * self.head_output_features_per_layer[i]
@@ -104,7 +104,6 @@ class GATModel(pl.LightningModule):
                     skip_out = self.num_heads_per_layer[i + 1] * self.head_output_features_per_layer[i + 1]
                 else:
                     # Add a linear projection from NH(l-1) * F_OUT(l-1) to NH(l) * F_OUT(l).
-                    # TODO we can actually just use F_OUT, perhaps too much capacity
                     skip_out = self.num_heads_per_layer[i + 1] * self.head_output_features_per_layer[i + 1]
 
                 if skip_in == skip_out:
@@ -119,10 +118,6 @@ class GATModel(pl.LightningModule):
         self.skip_layer_list = nn.ModuleList(skip_layers)
         print("GAT Layers", self.gat_layer_list)
         print("Skip Layers", self.skip_layer_list)
-
-    # def reset_parameters(self):
-    #     self.gat1.reset_parameters()
-    #     self.gat2.reset_parameters()
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
@@ -147,7 +142,7 @@ class GATModel(pl.LightningModule):
                     x = x + skip_output
                 else:
                     # Aggregate by mean
-                    skip_output = skip_output.view(-1, self.num_heads_per_layer[i + 1],
+                    skip_output  = skip_output.view(-1, self.num_heads_per_layer[i + 1],
                                                    self.head_output_features_per_layer[i + 1])
                     x = x + skip_output.mean(dim=1)
 
@@ -191,6 +186,82 @@ class GATModel(pl.LightningModule):
                 x = F.elu(x)
 
         return x, edge_index, attention_weights_list
+
+    def calc_attention_norm(self, edge_index, attention_list):
+        # (incoming) Neighbourhood: Edges that share a target node
+        neighbourhood_indices = edge_index[1]
+
+        first_attention = attention_list[0]
+
+        # Get degrees, shaped as (E,), so that we can reshape for every layer
+        degrees = sum_over_neighbourhood(
+            torch.ones_like(first_attention[:, 0]),
+            neighbourhood_indices=neighbourhood_indices,
+            aggregated_shape=first_attention[:, 0].size(),
+            broadcast_back=True,
+        )
+        # print("new degrees shape", degrees.size())
+
+        num_layers = len(attention_list)
+        attention_norm = torch.tensor(0.0, device=self.device)
+        # Calculate attention penalty for each layer (can parallelise?)
+        for i in range(num_layers):
+            tmp_degrees = explicit_broadcast(degrees, attention_list[i])
+            unnormalised_attention = attention_list[i] * tmp_degrees
+
+            attention_minus_const = unnormalised_attention - 1.0
+
+            # print(f"unnormalised_attention {i}", unnormalised_attention.detach().cpu(), unnormalised_attention.size())
+            # print(f"attention_minus const {i}", attention_minus_const.detach().cpu())
+            # Tensorboard must be passed in as a logger (can't use default logging for this)
+            if self.logger is not None:
+                tensorboard: TensorBoardLogger = self.logger
+                tensorboard.experiment.add_histogram(f"unnormalised_attention_layer_{i}",
+                                                     unnormalised_attention.detach().cpu())
+                tensorboard.experiment.add_histogram(f"attention_minus_const_layer_{i}",
+                                                     attention_minus_const.detach().cpu())
+
+            norm_i = torch.norm(attention_minus_const, p=1)
+            norm_i = norm_i / neighbourhood_indices.size(0)  # Can also get average norm per edge
+            attention_norm = attention_norm + norm_i
+
+        # print("attention norm total:", attention_norm.detach().cpu())
+        attention_norm = attention_norm / torch.tensor(num_layers, device=self.device)
+
+        # # CLIP GRAD.
+        # attention_norm = torch.minimum(attention_norm, torch.tensor([10.0], device=self.device))
+        # print("attention norm / layers:", attention_norm.detach().cpu())
+
+        return attention_norm
+
+    # Useful for checking if gradients are flowing
+    def on_after_backward(self):
+        # Log gradient histograms/distributions
+        if self.track_grads:
+            if self.logger is not None:
+                tensorboard: TensorBoardLogger = self.logger
+                skip_count = 0
+                for i in range(len(self.gat_layer_list)):
+                    tensorboard.experiment.add_histogram(f"gradient/gat_weight_layer{i}", self.gat_layer_list[i].W.weight.grad)
+                    tensorboard.experiment.add_histogram(f"gradient/attention_weight_layer{i}", self.gat_layer_list[i].a.weight.grad)
+                    if len(self.skip_layer_list) > skip_count:
+                        skip_layer = self.skip_layer_list[skip_count]
+                        if isinstance(skip_layer, torch.nn.Linear):
+                            tensorboard.experiment.add_histogram(f"gradient/skip_weight_layer{i}", skip_layer.weight.grad)
+                        skip_count += 1
+
+    # Useful for checking if gradients are flowing
+    # def on_after_backward(self):
+    #     print("On backwards")
+    #     # print(self.attention_reg_sum.grad)
+    #     print("w: ", self.gat_layer_list[0].W.weight.grad)
+    #     print("a:", self.gat_layer_list[0].a.weight.grad)
+    #     print("normalised", self.gat_layer_list[0].normalised_attention_coeffs.grad)
+    #     # print(self.gat_model[0].attention_reg_sum)
+    # grad_fn = loss.grad_fn
+    # for i in range(10):
+    #     grad_fn = grad_fn.next_functions[0][0]
+    #     print("loss trace:", loss.grad_fn.next_functions[0][0])
 
     def perform_skip_connection(self, skip_connection_layer, layer_input, layer_output, concat, heads_out, features_out):
         if layer_input.shape[-1] == layer_output.shape[-1]:

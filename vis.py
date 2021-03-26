@@ -41,6 +41,7 @@ if __name__ == "__main__":
         config = data_config[dataset]
         di = {k: v for k, v in args.__dict__.items() if v is not None}
         config.update(di)
+        config['test_type'] = 'Inductive' if dataset=='PPI' else "Transductive"
         vis_type = config.pop('vis_type')
         checkpoint_path = None
         if 'checkpoint_path' in config.keys():
@@ -62,7 +63,7 @@ if __name__ == "__main__":
         elif vis_type == "Neighbourhood":
             draw_neighbour_attention_distribution(graph_labels=batch.y, edge_index=edge_index,
                                                   attention_weights=attention_list, dataset_name=config['dataset'],
-                                                  layer_num=0, head_num=0, show=False)
+                                                  layer_num=0, head_num=0, show=True)
         elif vis_type == "Weight":
             if config['dataset'] == "PPI":
                 epochs_recorded = [1, 5, 10, 20, 50, 100]
