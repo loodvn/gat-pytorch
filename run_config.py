@@ -27,7 +27,7 @@ data_config = {
         "dropout": 0.0,
         "l2_reg": 0.0, 
         "learning_rate": 0.005,
-        "train_batch_size": 2,
+        "batch_size": 2,
         "num_epochs": 1000,
         "const_attention": False
     },
@@ -43,7 +43,7 @@ data_config = {
         "dropout": 0,
         "l2_reg": 0, 
         "learning_rate": 0.005,
-        "train_batch_size": 8,
+        "batch_size": 8,
         "num_epochs": 1000,
         "const_attention": False
     },
@@ -59,7 +59,7 @@ data_config = {
         "dropout": 0.6,
         "l2_reg": 0.0005, 
         "learning_rate": 0.005,
-        "train_batch_size": 1,
+        "batch_size": 1,
         "num_epochs": 1000,
         "const_attention": False
     },
@@ -75,7 +75,7 @@ data_config = {
         "dropout": 0.6,
         "l2_reg": 0.0005, 
         "learning_rate": 0.005,
-        "train_batch_size": 1,
+        "batch_size": 1,
         "num_epochs": 1000,
         "const_attention": False
     },
@@ -91,7 +91,7 @@ data_config = {
         "dropout": 0.6,
         "l2_reg": 0.001, 
         "learning_rate": 0.01,
-        "train_batch_size": 1,
+        "batch_size": 1,
         "num_epochs": 1000,
         "const_attention": False
     }

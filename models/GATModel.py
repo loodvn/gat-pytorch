@@ -18,7 +18,7 @@ _num_cpu = os.cpu_count()
 
 
 class GATModel(pl.LightningModule):
-    def __init__(self, 
+    def __init__(self,
                  layer_type: LayerType,
                  dataset: str,
                  num_classes: int,
@@ -31,7 +31,7 @@ class GATModel(pl.LightningModule):
                  dropout: float,
                  l2_reg: float,
                  learning_rate: float,
-                 train_batch_size: int,
+                 batch_size: int,
                  num_epochs: int,
                  const_attention: bool,
                  **kwargs):
@@ -52,7 +52,7 @@ class GATModel(pl.LightningModule):
         self.dropout = dropout
         self.input_node_features = num_input_node_features
         self.num_classes = num_classes
-        self.train_batch_size = int(train_batch_size)
+        self.batch_size = int(batch_size)
         self.num_epochs = int(num_epochs)
         self.const_attention = const_attention
         # In order to make the number of heads consistent as this is used in the in_channels for our GAT layer we have prepended the list given by the user
@@ -281,10 +281,10 @@ class GATModel(pl.LightningModule):
         return optimizer
     
     def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=self.train_batch_size, shuffle=True, num_workers=_num_cpu, pin_memory=True)
+        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=_num_cpu, pin_memory=True)
         
     def val_dataloader(self):
-        return DataLoader(self.val_ds, num_workers=_num_cpu, pin_memory=True)
+        return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=_num_cpu, pin_memory=True)
 
     def test_dataloader(self):
         return DataLoader(self.test_ds)
