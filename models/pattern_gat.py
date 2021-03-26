@@ -1,12 +1,11 @@
 import torch
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
 from torch_geometric.datasets import GNNBenchmarkDataset
-from torch_geometric.data import DataLoader
+
 import models.GATModel
 
+
 class patGAT(models.GATModel.GATModel):
-    def __init__(self, **config):    
+    def __init__(self, **config):
         super().__init__(**config)
         data = [4.65]
         dataset_balance = torch.tensor(data)
@@ -25,9 +24,8 @@ class patGAT(models.GATModel.GATModel):
         train_correct = out == target  # Check against ground-truth labels.
         train_acc = int(train_correct.sum()) / int(len(target))  # Derive ratio of correct predictions.
 
-
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_acc', train_acc, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss, prog_bar=True, logger=True)
+        self.log('train_acc', train_acc, prog_bar=True, logger=True)
 
         return loss
 
@@ -38,15 +36,15 @@ class patGAT(models.GATModel.GATModel):
         target = (batch.y).float()
 
         loss = self.loss_fn(out, target)
-        
+
         out = (out > 0)
 
         val_correct = out == target  # Check against ground-truth labels.
         val_acc = int(val_correct.sum()) / int(len(target))  # Derive ratio of correct predictions.
 
-        self.log('val_loss', loss, on_step=True, prog_bar=True, logger=True)
-        self.log('val_acc', val_acc, on_epoch=True, prog_bar=True, logger=True)
-        
+        self.log('val_loss', loss, prog_bar=True, logger=True)
+        self.log('val_acc', val_acc, prog_bar=True, logger=True)
+
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -58,9 +56,9 @@ class patGAT(models.GATModel.GATModel):
         test_correct = out == target  # Check against ground-truth labels.
         test_acc = int(test_correct.sum()) / int(len(target))  # Derive ratio of correct predictions.
 
-        self.log('test_acc', test_acc, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_acc', test_acc, prog_bar=True, logger=True)
         return test_acc
-    
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, min_lr=0.000001)

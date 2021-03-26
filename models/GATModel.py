@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 import pytorch_lightning as pl
@@ -11,6 +12,8 @@ from torch_geometric.nn import GATConv
 from .gat_layer import GATLayer
 # pl.seed_everything(42)
 from run_config import LayerType
+
+_num_cpu = os.cpu_count()
 
 
 class GATModel(pl.LightningModule):
@@ -31,22 +34,8 @@ class GATModel(pl.LightningModule):
                  num_epochs: int,
                  const_attention: bool,
                  **kwargs):
-        """[summary]
-        # UPDATE THIS!!
-        Args:
-            config (dict): 
-                - layer_type: str
-                - num_input_node_features: int,
-                - num_layers: int
-                - num_heads_per_layer: List[int]
-                - heads_concat_per_layer: List[bool]
-                - head_output_features_per_layer: List[int]
-                - add_skip_connection: bool 
-                - dropout: float
-                - l2_reg: float
-                - learning_rate: float
-                - train_batch_size: int
-                - num_epochs: int
+        """
+        TODO docstring
         """
         super(GATModel, self).__init__()
 
@@ -221,10 +210,10 @@ class GATModel(pl.LightningModule):
         return optimizer
     
     def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=self.train_batch_size, shuffle=True)
+        return DataLoader(self.train_ds, batch_size=self.train_batch_size, shuffle=True, num_workers=_num_cpu, pin_memory=True)
         
     def val_dataloader(self):
-        return DataLoader(self.val_ds)
+        return DataLoader(self.val_ds, num_workers=_num_cpu, pin_memory=True)
 
     def test_dataloader(self):
         return DataLoader(self.test_ds)
