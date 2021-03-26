@@ -61,7 +61,6 @@ class PlanetoidGAT(GATModel):
         # out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_coeffs=True)
         out = self(batch)
         # self.attention_weights_list = attention_list
-        # OW: TODO - Use these attention weights.
         pred = out.argmax(dim=1)  # Use the class with highest probability.
 
         test_correct = pred[batch.test_mask] == batch.y[batch.test_mask]  # Check against ground-truth labels.

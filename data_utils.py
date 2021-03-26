@@ -36,8 +36,10 @@ def load(config, file_name_ending='-best.ckpt', checkpoint_path=None):
     if checkpoint_path is not None:
         path = checkpoint_path
 
-    if config['test_type'] == 'Inductive':
+    if config['dataset'] == 'PPI':
         loaded_model = PPI_GAT.load_from_checkpoint(checkpoint_path=path, **config)
+    elif config['dataset'] == 'PATTERN':
+        loaded_model = PatternGAT.load_from_checkpoint(checkpoint_path=path, **config)
     else:
         loaded_model = PlanetoidGAT.load_from_checkpoint(checkpoint_path=path, **config)
     return loaded_model
