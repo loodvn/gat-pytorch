@@ -11,6 +11,7 @@ class PatternGAT(models.GATModel.GATModel):
         data = [4.65]
         dataset_balance = torch.tensor(data)
         self.loss_fn = torch.nn.BCEWithLogitsLoss(reduction='mean', pos_weight=dataset_balance)
+        self.track_grads=False
 
     def training_step(self, batch, batch_idx):
         out = self(batch)
