@@ -21,6 +21,7 @@ def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
                                           layer_num: int,
                                           head_num: int,
                                           show: bool,
+                                          save: bool,
                                           node_id=None):
     # These are randomly drawn nodes with degree 10. This is just for comparison purposes.
     node_list = {
@@ -84,7 +85,7 @@ def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
 
             displayed_graph.save(os.path.join(FIGURE_DIR_PATH, dataset_name,
                                               'layer_{}_head_{}_node_{}.png'.format(layer_num, head_num, node_id)))
-        else:
+        if save or not show:
             # Save only.
             # Create intermediate directories if they do not exist. Could extract this out to a utils file.
             if not os.path.isdir(FIGURE_DIR_PATH):

@@ -52,7 +52,8 @@ def draw_weights_histogram(edge_index: torch.Tensor,
                            attention_weights: List[torch.Tensor],
                            epoch_number: int,
                            num_nodes: int,
-                           dataset_name: str):
+                           dataset_name: str,
+                           save: bool):
     # In our implementation we use the 'target node' that which is in the position[1] of the edge_index to perform the softmax normalisation on, so in order to be consistent we use the same here
     source_nodes = edge_index[0]
     target_nodes = edge_index[1]
@@ -93,4 +94,4 @@ def draw_weights_histogram(edge_index: torch.Tensor,
             # Call the histogram plotting tool. 
             create_attention_weight_dual_histogram(neighbourhood_weights, uniform_dist_weights,
                                                    dataset_name=dataset_name, epoch=epoch_number, layer_num=layer, head_num=head,
-                                                   show=True, save=False, transductive=(dataset_name != 'PPI'))
+                                                   show=True, save=save, transductive=(dataset_name != 'PPI'))
