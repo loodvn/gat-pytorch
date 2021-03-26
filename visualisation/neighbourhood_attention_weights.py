@@ -13,6 +13,7 @@ import torch
 node_label_to_colour_map = {0: "red", 1: "blue", 2: "green", 3: "orange", 4: "yellow", 5: "pink", 6: "gray"}
 FIGURE_DIR_PATH = os.curdir + f'/figures/neighbourhood_plots/'
 
+
 def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
                                           edge_index: torch.Tensor,
                                           attention_weights: List[torch.Tensor],
@@ -21,13 +22,13 @@ def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
                                           head_num: int,
                                           show: bool,
                                           node_id=None):
-
     # These are randomly drawn nodes with degree 10. This is just for comparison purposes.
     node_list = {
-        "Cora": [48, 74, 133, 231, 482, 490, 695, 702, 711, 735, 833, 867],  
+        "Cora": [48, 74, 133, 231, 482, 490, 695, 702, 711, 735, 833, 867],
         "Citeseer": [567, 620, 709, 865, 1033, 1275, 1759, 1918, 1971, 1981, 2063, 2097],
         "Pubmed": [407, 555, 831, 872, 884, 912, 926, 966, 1008, 1033, 1098, 1169],
-        "PPI": [240, 268, 298, 306, 313, 328, 331, 350, 358, 388]
+        "PPI": [240, 268, 298, 306, 313, 328, 331, 350, 358, 388],
+        "PATTERN": range(10),
     }
 
     if node_id is None:
@@ -71,7 +72,8 @@ def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
         # layout which makes for each visualisation.
         if show:
             # This is if we want to display the graph and then save it
-            if dataset_name != 'PPI':
+            planetoid_datasets = ['Cora', 'Citeseer', 'Pubmed']
+            if dataset_name in planetoid_datasets + ['PATTERN']:
                 cora_node_color_mapping = [node_label_to_colour_map[node_label] for node_label in neighbour_node_labels]
                 displayed_graph = ig.plot(ig_graph, edge_width=attention_weights_for_neighbours_at_head_at_layer,
                                           layout=ig_graph.layout_reingold_tilford_circular(),
@@ -91,14 +93,17 @@ def draw_neighbour_attention_distribution(graph_labels: torch.Tensor,
             if not os.path.isdir(save_dir):
                 os.mkdir(save_dir)
 
-            if dataset_name != 'PPI':
+            planetoid_datasets = ['Cora', 'Citeseer', 'Pubmed']
+            if dataset_name in planetoid_datasets + ['PATTERN']:
                 cora_node_color_mapping = [node_label_to_colour_map[node_label] for node_label in neighbour_node_labels]
                 ig.plot(ig_graph, os.path.join(FIGURE_DIR_PATH, dataset_name,
                                                'layer_{}_head_{}_node_{}.png'.format(layer_num, head_num, node_id)),
                         edge_width=attention_weights_for_neighbours_at_head_at_layer,
                         layout=ig_graph.layout_reingold_tilford_circular(), vertex_color=cora_node_color_mapping)
-            else:
+            elif dataset_name == 'PPI':
                 ig.plot(ig_graph, os.path.join(FIGURE_DIR_PATH, dataset_name,
                                                'layer_{}_head_{}_node_{}.png'.format(layer_num, head_num, node_id)),
                         edge_width=attention_weights_for_neighbours_at_head_at_layer,
                         layout=ig_graph.layout_reingold_tilford_circular())
+            else:
+                raise ValueError(f"Dataset name not valid. Expected one of {planetoid_datasets}/PPI/PATTERN")

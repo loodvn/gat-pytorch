@@ -1,12 +1,12 @@
-''' 
+"""
 Runner script for visualisation.
 This can perform graphing of the neighbours with edge width in proportion to the attention coeffs, entropy histograms for the dist of attention weights, and then
 also plotting the normalised weights as a histogram.
-'''
+"""
 
 import argparse
 from torch_geometric.data import DataLoader
-from torch_geometric.datasets import Planetoid, PPI
+from torch_geometric.datasets import Planetoid, PPI, GNNBenchmarkDataset
 import data_utils
 from run_config import data_config
 from visualisation.entropy_histograms import draw_entropy_histogram
@@ -16,10 +16,15 @@ from visualisation.weight_histograms import draw_weights_histogram
 
 def get_test_data(dataset_name):
     # Quick and easy function to get the data we require for a test run to get the attention weights.
-    if dataset_name == 'Cora' or dataset_name == 'Citeseer' or dataset_name == 'Pubmed':
+    planetoid_datasets = ['Cora', 'Citeseer', 'Pubmed']
+    if dataset_name in planetoid_datasets:
         return DataLoader(Planetoid(root='/tmp/' + dataset_name, name=dataset_name))
-    else:
+    elif dataset_name == "PPI":
         return DataLoader(PPI(root='/tmp/PPI', split='test'))
+    elif dataset_name == "PATTERN":
+        return DataLoader(GNNBenchmarkDataset(root='/tmp/Pattern', name="PATTERN", split='test'))
+    else:
+        raise ValueError(f"Dataset name not valid. Expected one of {planetoid_datasets}/PPI/PATTERN")
 
 
 def main(dataset, vis_type, checkpoint_path=None):
