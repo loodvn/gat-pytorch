@@ -39,7 +39,7 @@ def load(config, file_name_ending='-best.ckpt', checkpoint_path=None):
         path = checkpoint_path
 
     if config['dataset'] == 'PPI':
-        loaded_model = PPI_GAT.load_from_checkpoint(checkpoint_path=path, **config)
+        loaded_model = PPI_GAT.load_from_checkpoint(checkpoint_path=path, **config, strict=False)
     elif config['dataset'] == 'PATTERN':
         loaded_model = PatternGAT.load_from_checkpoint(checkpoint_path=path, **config)
     else:

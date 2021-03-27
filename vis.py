@@ -56,7 +56,7 @@ def main(dataset, vis_type, checkpoint_path=None, show=True, save=False):
                                                   layer_num=0, head_num=0, show=show, save=save)
         elif vis_type == "Weight":
             if config['dataset'] == "PPI":
-                epochs_recorded = [1, 5, 10, 20, 50, 100]
+                epochs_recorded = [1, 5, 20, 50, 100]
                 for epoch_number in epochs_recorded:
                     # We need to load up the different modules in succesion for the different. Once this is loaded we complete a forward pass on a batch of then
                     # test data and plot the weight histogram for these.
