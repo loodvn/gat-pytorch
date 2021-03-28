@@ -1,7 +1,6 @@
 import os
 from typing import List
 
-
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -34,6 +33,7 @@ class GATModel(pl.LightningModule):
                  batch_size: int,
                  num_epochs: int,
                  const_attention: bool,
+                 fast_dataloading: bool = False,
                  **kwargs):
         """
         TODO docstring
@@ -62,7 +62,8 @@ class GATModel(pl.LightningModule):
         self.heads_concat_per_layer = heads_concat_per_layer
 
         self.train_ds, self.val_ds, self.test_ds = None, None, None
-        
+        self.fast_dataloading = fast_dataloading
+
         # Collect the layers into a list and then place together into a ModuleList
         gat_layers = []
         skip_layers = []
@@ -71,8 +72,8 @@ class GATModel(pl.LightningModule):
             if self.layer_type == LayerType.GATLayer:
                 gat_layer = GATLayer(
                     in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
-                    out_features=self.head_output_features_per_layer[i+1],
-                    num_heads=self.num_heads_per_layer[i+1],
+                    out_features=self.head_output_features_per_layer[i + 1],
+                    num_heads=self.num_heads_per_layer[i + 1],
                     concat=self.heads_concat_per_layer[i],
                     dropout=self.dropout,
                     bias=False,
@@ -82,8 +83,8 @@ class GATModel(pl.LightningModule):
             elif self.layer_type == LayerType.PyTorch_Geometric:
                 gat_layer = GATConv(
                     in_channels=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
-                    out_channels=self.head_output_features_per_layer[i+1],
-                    heads=self.num_heads_per_layer[i+1],
+                    out_channels=self.head_output_features_per_layer[i + 1],
+                    heads=self.num_heads_per_layer[i + 1],
                     concat=self.heads_concat_per_layer[i],
                     dropout=self.dropout,
                     add_self_loops=True,
@@ -112,7 +113,7 @@ class GATModel(pl.LightningModule):
                     skip_layer = nn.Linear(in_features=skip_in, out_features=skip_out, bias=False)
 
                 skip_layers.append(skip_layer)
-        
+
         # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
         self.gat_layer_list = nn.ModuleList(gat_layers)
         self.skip_layer_list = nn.ModuleList(skip_layers)
@@ -142,7 +143,7 @@ class GATModel(pl.LightningModule):
                     x = x + skip_output
                 else:
                     # Aggregate by mean
-                    skip_output  = skip_output.view(-1, self.num_heads_per_layer[i + 1],
+                    skip_output = skip_output.view(-1, self.num_heads_per_layer[i + 1],
                                                    self.head_output_features_per_layer[i + 1])
                     x = x + skip_output.mean(dim=1)
 
@@ -165,7 +166,8 @@ class GATModel(pl.LightningModule):
 
             x = F.dropout(x, p=self.dropout, training=self.training)
             # Get outputs from GAT layer
-            x, (edge_index, layer_attention_weight) = self.gat_layer_list[i](x, edge_index, return_attention_weights=return_attention_weights)
+            x, (edge_index, layer_attention_weight) = self.gat_layer_list[i](x, edge_index,
+                                                                             return_attention_weights=return_attention_weights)
             attention_weights_list.append(layer_attention_weight)
 
             # Add a skip connection between the input and GAT layer output
@@ -242,12 +244,15 @@ class GATModel(pl.LightningModule):
                 tensorboard: TensorBoardLogger = self.logger
                 skip_count = 0
                 for i in range(len(self.gat_layer_list)):
-                    tensorboard.experiment.add_histogram(f"gradient/gat_weight_layer{i}", self.gat_layer_list[i].W.weight.grad)
-                    tensorboard.experiment.add_histogram(f"gradient/attention_weight_layer{i}", self.gat_layer_list[i].a.weight.grad)
+                    tensorboard.experiment.add_histogram(f"gradient/gat_weight_layer{i}",
+                                                         self.gat_layer_list[i].W.weight.grad)
+                    tensorboard.experiment.add_histogram(f"gradient/attention_weight_layer{i}",
+                                                         self.gat_layer_list[i].a.weight.grad)
                     if len(self.skip_layer_list) > skip_count:
                         skip_layer = self.skip_layer_list[skip_count]
                         if isinstance(skip_layer, torch.nn.Linear):
-                            tensorboard.experiment.add_histogram(f"gradient/skip_weight_layer{i}", skip_layer.weight.grad)
+                            tensorboard.experiment.add_histogram(f"gradient/skip_weight_layer{i}",
+                                                                 skip_layer.weight.grad)
                         skip_count += 1
 
     # Useful for checking if gradients are flowing
@@ -263,7 +268,8 @@ class GATModel(pl.LightningModule):
     #     grad_fn = grad_fn.next_functions[0][0]
     #     print("loss trace:", loss.grad_fn.next_functions[0][0])
 
-    def perform_skip_connection(self, skip_connection_layer, layer_input, layer_output, concat, heads_out, features_out):
+    def perform_skip_connection(self, skip_connection_layer, layer_input, layer_output, concat, heads_out,
+                                features_out):
         if layer_input.shape[-1] == layer_output.shape[-1]:
             # This is fine we can just add these and return.
             layer_output += layer_input
@@ -273,18 +279,25 @@ class GATModel(pl.LightningModule):
             else:
                 skip_output = skip_connection_layer(layer_input).view(-1, heads_out, features_out)
                 layer_output += skip_output.mean(dim=1)
-        
+
         return layer_output
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
         return optimizer
-    
+
     def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=_num_cpu, pin_memory=True)
-        
+        if self.fast_dataloading:
+            return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=_num_cpu,
+                              pin_memory=True)
+        else:
+            return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True)
+
     def val_dataloader(self):
-        return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=_num_cpu, pin_memory=True)
+        if self.fast_dataloading:
+            return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=_num_cpu, pin_memory=True)
+        else:
+            return DataLoader(self.val_ds, batch_size=self.batch_size)
 
     def test_dataloader(self):
         return DataLoader(self.test_ds)
