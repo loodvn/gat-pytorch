@@ -22,7 +22,7 @@ def create_attention_weight_dual_histogram(attention_weight_values: List[float],
                                             transductive: bool):
 
     # Plot the histogram on the same axis using a logarithmic scale on the y axis.
-    low_range, high_range = (0, 5) if dataset_name == "PPI" else (0.5, 1.5)
+    low_range, high_range = (0, 5) if dataset_name == "PPI" or dataset_name == "PATTERN" else (0.5, 1.5)
     plt.hist(x=attention_weight_values, bins=20, range=[low_range, high_range], color='green', alpha=0.7, label='Attention Weights')
     if dataset_name == "PPI": plt.yscale('log')
     plt.hist(x=uniform_weight_values, bins=20, range=[low_range, high_range], color='darkred', alpha=0.7, label='Uniform Weights')
