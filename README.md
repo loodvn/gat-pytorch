@@ -28,8 +28,15 @@ When using vis, the only other valid flag is 'vis_type' which must be Neighbourh
 
 When using train, the runtime parameters of 'num_epochs', 'l2_reg', 'learning_rate' and 'patience' can all be used, though are not necessary as there are default values in the config file. Additionally, 'exec_type' can be set to 'load' in order to skip training and test a pretrained model.
 
+### Visualisation Examples
+Neighbourhood Plot:
+![PPI_Neigh_2](https://user-images.githubusercontent.com/25391634/114173657-66138500-992f-11eb-8d34-7d8d26cd565b.png)
 
-TODO(Lood) include plots
+Entropy Histogram:
+![pattern_entropy](https://user-images.githubusercontent.com/25391634/114173249-c5bd6080-992e-11eb-8122-e16dc4c45cb1.png)
+
+Weight Histogram:
+![pattern_attention_weights](https://user-images.githubusercontent.com/25391634/114173239-c229d980-992e-11eb-8fc2-7da19e4b8dfa.png)
 
 ## Credits
 TODO(Lood): TF GAT repo, Aleksa Gordic repo, DGL blog
