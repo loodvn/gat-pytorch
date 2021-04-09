@@ -51,10 +51,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Read in dataset and any other flags from command line')
     parser.add_argument('--dataset', default='Cora')
-    parser.add_argument('--num_epochs') # should be max_epochs
+    parser.add_argument('--num_epochs')
     parser.add_argument('--l2_reg')
     parser.add_argument('--learning_rate')
-    # this could throw an error if flag is set
     parser.add_argument('--patience')
     parser.add_argument('--exec_type', default='train')
     parser.add_argument('--histograms', default=False)
