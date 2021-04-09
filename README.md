@@ -2,7 +2,7 @@
 Reproducing Graph Attention Networks by Velickovic et al.
 By Oliver Warwick, Pavlos Piperis, Khalil Ibrahim and Lood van Niekerk
 
-This repo contains all of the code for our implementation of the GAT layer and everything needed to run it.
+This repo contains our implementation of the GAT layer along with code to run all our training, testing, visualisation and other experiments.
 
 The information below details how to get the code running locally via the command line. However, we strongly recommend using the jupyter notebook (Reproduce_Experiments.ipynb) to do this instead (through Colab to use GPUs). It is both simpler and more visually appealing, whilst still being able to display the complete functionality of our solution.
 
