@@ -1,11 +1,7 @@
-import torch
-from torch import nn
-from torch.nn import BCEWithLogitsLoss
-from torch_geometric.data import DataLoader
-from torch_geometric.datasets import PPI
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.metrics import f1_score
+from torch.nn import BCEWithLogitsLoss
+from torch_geometric.datasets import PPI
+
 from models.GATModel import GATModel
 
 
@@ -18,7 +14,7 @@ class PPI_GAT(GATModel):
 
     def training_step(self, batch, batch_idx):
         # Get the outputs from the forwards function, the edge index and the tensor of attention weights.
-        out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_weights=True)  # attention_weights_list
+        out, edge_index, attention_list = self.forward_and_return_attention(batch, return_attention_weights=True)
 
         loss = self.loss_fn(out, batch.y)
 
@@ -38,12 +34,11 @@ class PPI_GAT(GATModel):
         # print("Total Loss: {}".format(loss.detach().cpu()))
 
         self.log('train_loss', loss.detach().cpu(), prog_bar=True, logger=True)
-        
+
         f1 = f1_score(y_pred=out.detach().cpu().numpy() > 0, y_true=batch.y.detach().cpu().numpy(), average='micro')
         self.log('train_f1_score', f1, prog_bar=True, logger=True)
 
         return loss
-
 
     def validation_step(self, batch, batch_idx):
         out = self(batch)
