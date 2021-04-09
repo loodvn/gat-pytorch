@@ -35,9 +35,6 @@ class GATModel(pl.LightningModule):
                  const_attention: bool,
                  fast_dataloading: bool = False,
                  **kwargs):
-        """
-        TODO docstring
-        """
         super(GATModel, self).__init__()
 
         # Decide whether we are using our layer or the default implementation for PyTorch Geometric of GAT.
@@ -114,7 +111,7 @@ class GATModel(pl.LightningModule):
 
                 skip_layers.append(skip_layer)
 
-        # Once this is finished we can create out network by unpacking the layers into teh Sequential module class.
+        # Once this is finished we can create our network by unpacking the layers into teh Sequential module class.
         self.gat_layer_list = nn.ModuleList(gat_layers)
         self.skip_layer_list = nn.ModuleList(skip_layers)
         print("GAT Layers", self.gat_layer_list)
@@ -254,19 +251,6 @@ class GATModel(pl.LightningModule):
                             tensorboard.experiment.add_histogram(f"gradient/skip_weight_layer{i}",
                                                                  skip_layer.weight.grad)
                         skip_count += 1
-
-    # Useful for checking if gradients are flowing
-    # def on_after_backward(self):
-    #     print("On backwards")
-    #     # print(self.attention_reg_sum.grad)
-    #     print("w: ", self.gat_layer_list[0].W.weight.grad)
-    #     print("a:", self.gat_layer_list[0].a.weight.grad)
-    #     print("normalised", self.gat_layer_list[0].normalised_attention_coeffs.grad)
-    #     # print(self.gat_model[0].attention_reg_sum)
-    # grad_fn = loss.grad_fn
-    # for i in range(10):
-    #     grad_fn = grad_fn.next_functions[0][0]
-    #     print("loss trace:", loss.grad_fn.next_functions[0][0])
 
     def perform_skip_connection(self, skip_connection_layer, layer_input, layer_output, concat, heads_out,
                                 features_out):

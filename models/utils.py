@@ -8,13 +8,6 @@ def sum_over_neighbourhood(values: torch.tensor, neighbourhood_indices: torch.te
     """
     Aggregate values over N neighbourhoods using torch.scatter_add, with some extra size checking.
     Optionally return the values broadcasted back up to original size after summing.
-
-    TODO params
-    :param values:
-    :param neighbourhood_indices:
-    :param aggregated_shape:
-    :param broadcast_back:
-    :return:
     """
 
     # Create a new tensor in which to store the aggregated values. Created using the values tensor, so that the dtype and device match

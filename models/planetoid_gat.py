@@ -29,7 +29,7 @@ class PlanetoidGAT(GATModel):
         self.log('train_loss', loss, on_epoch=True, prog_bar=True, logger=True)  # There's only one step in epoch so we log on epoch
         return loss
 
-    def validation_step(self, batch, batch_idx):  # In Cora, there is only 1 batch (the whole graph)
+    def validation_step(self, batch, batch_idx):  
         out = self(batch)
         val_loss = self.loss_fn(out[batch.val_mask], batch.y[batch.val_mask])
 

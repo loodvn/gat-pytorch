@@ -63,7 +63,6 @@ class PPI_GAT(GATModel):
 
         return f1
 
-    # This should dynamically choose dataset class - not use PPI by default
     def prepare_data(self):
         self.train_ds = PPI(root='/tmp/PPI', split='train')
         self.val_ds = PPI(root='/tmp/PPI', split='val')
