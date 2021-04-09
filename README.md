@@ -30,11 +30,14 @@ When using train, the runtime parameters of 'num_epochs', 'l2_reg', 'learning_ra
 
 ### Visualisation Examples
 Neighbourhood Plot:
+
 ![PPI_Neigh_2](https://user-images.githubusercontent.com/25391634/114173657-66138500-992f-11eb-8d34-7d8d26cd565b.png)
 
 Entropy Histogram:
+
 ![pattern_entropy](https://user-images.githubusercontent.com/25391634/114173249-c5bd6080-992e-11eb-8122-e16dc4c45cb1.png)
 
 Weight Histogram:
+
 ![pattern_attention_weights](https://user-images.githubusercontent.com/25391634/114173239-c229d980-992e-11eb-8fc2-7da19e4b8dfa.png)
 
