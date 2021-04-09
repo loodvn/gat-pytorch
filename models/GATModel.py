@@ -221,7 +221,7 @@ class GATModel(pl.LightningModule):
                                                      attention_minus_const.detach().cpu())
 
             norm_i = torch.norm(attention_minus_const, p=1)
-            norm_i = norm_i / neighbourhood_indices.size(0)  # Can also get average norm per edge
+            norm_i = norm_i / neighbourhood_indices.size(0)  # Get average norm per edge
             attention_norm = attention_norm + norm_i
 
         # print("attention norm total:", attention_norm.detach().cpu())
