@@ -65,7 +65,7 @@ class GATModel(pl.LightningModule):
         gat_layers = []
         skip_layers = []
         for i in range(0, self.num_layers):
-            # Depending on the implimentation layer type depends what we do.
+            # Depending on the implementation layer type depends what we do.
             if self.layer_type == LayerType.GATLayer:
                 gat_layer = GATLayer(
                     in_features=self.num_heads_per_layer[i] * self.head_output_features_per_layer[i],
