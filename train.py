@@ -56,7 +56,6 @@ if __name__ == "__main__":
     parser.add_argument('--learning_rate')
     parser.add_argument('--patience')
     parser.add_argument('--exec_type', default='train')
-    parser.add_argument('--histograms', default=False)
 
     args = parser.parse_args()
     dataset = args.dataset

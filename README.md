@@ -18,8 +18,16 @@ For any other environment, we recommend setting up the notebook and running shel
 
 ## Example Usage
 
+The commands for running the files follow the general structure of:
 
-TODO(Lood): train.py, vis.py etc
+`python <filename>.py --dataset <dataset> --<other_flag_keys> <other_flag_val>`
+
+Where the filname is either train or vis, and the dataset is any which is in our config file. 
+
+When using vis, the only other valid flag is 'vis_type' which must be Neighbourhood, Weight, or Entropy.
+
+When using train, the runtime parameters of 'num_epochs', 'l2_reg', 'learning_rate' and 'patience' can all be used, though are not necessary as there are default values in the config file. Additionally, 'exec_type' can be set to 'load' in order to skip training and test a pretrained model.
+
 
 TODO(Lood) include plots
 
