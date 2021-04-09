@@ -39,4 +39,8 @@ Weight Histogram:
 ![pattern_attention_weights](https://user-images.githubusercontent.com/25391634/114173239-c229d980-992e-11eb-8fc2-7da19e4b8dfa.png)
 
 ## Credits
-TODO(Lood): TF GAT repo, Aleksa Gordic repo, DGL blog
+- The original TF repo by Petar Velickovic, author of Graph Attention Networks: https://github.com/PetarV-/GAT (used to check implementation details not found in paper)
+- PyTorch implementation of GAT, endorsed by Petar Velickovic: https://github.com/gordicaleksa/pytorch-GAT (had many useful functions that we used for models/gat_layer.py)
+- DGL (Deep Graph Library) blogpost on GAT: https://www.dgl.ai/blog/2019/02/17/gat.html (used for attention weight visualisations)
+ 
+Specific acknowledgements are made inside the codebase where outside code is used.
