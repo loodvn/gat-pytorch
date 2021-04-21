@@ -1,6 +1,7 @@
 # Graph Attention Networks (GAT) - PyTorch
 Reproducing Graph Attention Networks by Velickovic et al.
-By Oliver Warwick, Pavlos Piperis, Khalil Ibrahim and Lood van Niekerk
+
+By Oliver Warwick, Pavlos Piperis, Khalil Ibrahim and Lood van Niekerk, for Advanced ML class 2021.
 
 This repo contains our implementation of the GAT layer along with code to run all our training, testing, visualisation and other experiments.
 
